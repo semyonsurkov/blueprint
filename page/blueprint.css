@@ -116,7 +116,8 @@ details.doc > summary.source {
 details.doc[open] > summary.source { margin-bottom: 16px; }
 
 #theme_toggle {
-  padding: 6px 12px;
+  display: flex;
+  padding: 7px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--bg);
