@@ -125,3 +125,41 @@ details.doc[open] > summary.source { margin-bottom: 16px; }
   font: inherit;
   cursor: pointer;
 }
+
+#theme_toggle { width: 36px; height: 36px; padding: 0; align-items: center; justify-content: center; }
+
+#docs_toggle:disabled { opacity: 0.5; cursor: default; }
+
+.sk {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--bg_soft) 25%, var(--line) 50%, var(--bg_soft) 75%);
+  background-size: 200% 100%;
+  animation: sk_shimmer 1.4s linear infinite;
+}
+
+@keyframes sk_shimmer { to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+
+.sk_title { width: 64px; height: 20px; }
+.sk_tab { width: 84px; height: 32px; }
+
+.sk_page {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px 24px;
+}
+
+.sk_text { max-width: 980px; margin: 0 auto; right: 0; left: 0; }
+.sk_text .sk { height: 14px; }
+.sk_text .sk_heading { width: 40%; height: 28px; margin-bottom: 8px; }
+.sk_text .sk_short { width: 60%; }
+
+.sk_canvas { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 120px; padding: 96px 15% 64px; gap: 48px; }
+.sk_canvas .sk { border-radius: 12px; }

@@ -7,7 +7,9 @@
 <link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/index.css">
 <link rel="stylesheet" href="./blueprint.css">
 <script>
-try { const saved = localStorage.getItem("blueprint_theme"); if (saved) document.documentElement.dataset.theme = saved; } catch {}
+let theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+try { theme = localStorage.getItem("blueprint_theme") || theme; } catch {}
+document.documentElement.dataset.theme = theme;
 </script>
 <script>window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/";</script>
 <script type="importmap">
@@ -25,14 +27,14 @@ try { const saved = localStorage.getItem("blueprint_theme"); if (saved) document
 </head>
 <body>
 <header class="top">
-  <strong id="title"></strong>
-  <nav id="tabs"></nav>
+  <strong id="title"><i class="sk sk_title"></i></strong>
+  <nav id="tabs"><i class="sk sk_tab"></i><i class="sk sk_tab"></i><i class="sk sk_tab"></i></nav>
   <div id="actions">
     <span id="status"></span>
     <button id="theme_toggle" type="button" aria-label="Сменить тему"></button>
   </div>
 </header>
-<main id="view"></main>
+<main id="view"><div class="sk_page sk_canvas"><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i></div></main>
 <script type="module" src="./blueprint.js"></script>
 </body>
 </html>

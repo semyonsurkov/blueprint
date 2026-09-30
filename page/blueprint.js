@@ -8,9 +8,9 @@ const THEME_KEY = "blueprint_theme";
 const view = document.getElementById("view");
 const status = document.getElementById("status");
 let unmount = () => {};
+let generation = 0;
 
-const currentTheme = () => document.documentElement.dataset.theme
-  ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+const currentTheme = () => document.documentElement.dataset.theme;
 
 const themeToggle = document.getElementById("theme_toggle");
 const ICON_ATTRS = 'width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
@@ -52,10 +52,29 @@ const save = async (tab, elements, appState, files) => {
   status.textContent = response.ok ? `Сохранено в ${tab.file}` : "Не удалось сохранить";
 };
 
-const renderExcalidraw = async (tab) => {
+const skeleton = (kind) => {
+  const node = document.createElement("div");
+  node.className = `sk_page sk_${kind}`;
+  node.innerHTML = kind === "canvas"
+    ? '<i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i>'
+    : '<i class="sk sk_heading"></i><i class="sk"></i><i class="sk"></i><i class="sk sk_short"></i><i class="sk"></i><i class="sk"></i><i class="sk sk_short"></i>';
+  return node;
+};
+
+const docsButton = (tab) => {
+  const button = document.createElement("button");
+  button.id = "docs_toggle";
+  button.textContent = tab.docs_label ?? "Документы";
+  button.disabled = true;
+  themeToggle.after(button);
+  return button;
+};
+
+const renderExcalidraw = async (tab, ready) => {
   const canvas = document.createElement("div");
   canvas.className = "canvas";
   view.append(canvas);
+  const toggle = tab.docs?.length ? docsButton(tab) : null;
   const scene = await loadScene(tab);
   let timer;
   let lastSaved = JSON.stringify(scene.elements);
@@ -73,19 +92,19 @@ const renderExcalidraw = async (tab) => {
     initialData: { elements: scene.elements, appState: { viewBackgroundColor: "#ffffff" }, scrollToContent: true },
     langCode: "ru-RU",
     theme: currentTheme(),
-    excalidrawAPI: (api) => setTimeout(() => api.scrollToContent(undefined, { fitToContent: true }), 0),
+    excalidrawAPI: (api) => setTimeout(() => {
+      api.scrollToContent(undefined, { fitToContent: true });
+      ready();
+    }, 0),
     onChange,
   }));
-  const docs = tab.docs ?? [];
-  if (!docs.length) return () => root.unmount();
+  if (!toggle) return () => root.unmount();
   const drawer = document.createElement("aside");
   drawer.className = "drawer";
   drawer.hidden = true;
   view.append(drawer);
-  await renderDocs(docs, drawer);
-  const toggle = document.createElement("button");
-  toggle.id = "docs_toggle";
-  toggle.textContent = tab.docs_label ?? "Документы";
+  await renderDocs(tab.docs, drawer);
+  toggle.disabled = false;
   const setOpen = (open) => {
     drawer.hidden = !open;
     toggle.setAttribute("aria-pressed", String(open));
@@ -93,24 +112,24 @@ const renderExcalidraw = async (tab) => {
   toggle.addEventListener("click", () => setOpen(drawer.hidden));
   const onKey = (event) => { if (event.key === "Escape") setOpen(false); };
   addEventListener("keydown", onKey);
-  themeToggle.after(toggle);
   return () => {
     removeEventListener("keydown", onKey);
-    toggle.remove();
     root.unmount();
   };
 };
 
-const renderFrame = (tab) => {
+const renderFrame = (tab, ready) => {
   const frame = document.createElement("iframe");
   frame.className = "frame";
+  frame.addEventListener("load", ready);
   frame.src = `/${tab.src}`;
   view.append(frame);
   return () => {};
 };
 
-const renderMarkdown = async (tab) => {
+const renderMarkdown = async (tab, ready) => {
   await renderDocs(tab.docs, view);
+  ready();
   return () => {};
 };
 
@@ -119,19 +138,23 @@ const renderers = { excalidraw: renderExcalidraw, frame: renderFrame, markdown: 
 const open = async (config, id) => {
   const tab = config.tabs.find((item) => item.id === id) ?? config.tabs[0];
   unmount();
-  view.replaceChildren();
+  document.getElementById("docs_toggle")?.remove();
+  const mine = ++generation;
+  const ready = () => { if (mine === generation) view.querySelector(".sk_page")?.remove(); };
+  view.replaceChildren(skeleton(tab.type === "markdown" ? "text" : "canvas"));
   status.textContent = "";
   for (const link of document.querySelectorAll("#tabs a")) {
     if (link.dataset.id === tab.id) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   }
-  unmount = await renderers[tab.type](tab);
+  const cleanup = await renderers[tab.type](tab, ready);
+  unmount = mine === generation ? cleanup : (cleanup(), unmount);
 };
 
 const config = JSON.parse(await fetchText("blueprint/blueprint.json"));
 document.title = config.title;
 document.getElementById("title").textContent = config.title;
-document.getElementById("tabs").append(...config.tabs.map((tab) => {
+document.getElementById("tabs").replaceChildren(...config.tabs.map((tab) => {
   const link = document.createElement("a");
   link.href = `#${tab.id}`;
   link.dataset.id = tab.id;
