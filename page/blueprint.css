@@ -128,22 +128,28 @@ details.doc[open] > summary.source { margin-bottom: 16px; }
 
 #theme_toggle { width: 36px; height: 36px; padding: 0; align-items: center; justify-content: center; }
 
-#docs_toggle:disabled { opacity: 0.5; cursor: default; }
+.icon_sun, .icon_moon { display: none; }
+:root[data-theme="dark"] .icon_sun { display: block; }
+:root[data-theme="light"] .icon_moon { display: block; }
 
 .sk {
   display: block;
+  opacity: 0;
+  animation: sk_show 0s 150ms forwards, sk_shimmer 1.4s linear infinite;
   border-radius: 8px;
   background: linear-gradient(90deg, var(--bg_soft) 25%, var(--line) 50%, var(--bg_soft) 75%);
   background-size: 200% 100%;
-  animation: sk_shimmer 1.4s linear infinite;
 }
+
+@keyframes sk_show { to { opacity: 1; } }
 
 @keyframes sk_shimmer { to { background-position: -200% 0; } }
 
-@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: sk_show 0s 150ms forwards; } }
 
 .sk_title { width: 64px; height: 20px; }
 .sk_tab { width: 84px; height: 32px; }
+.sk_button { width: 64px; height: 36px; border-radius: 8px; }
 
 .sk_page {
   position: absolute;
