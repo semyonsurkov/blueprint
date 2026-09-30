@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Пример</title>
+<link rel="stylesheet" href="wire.css">
+</head>
+<body>
+<div class="screen" style="width: 1280px; height: 860px">
+  <div data-wire="header" data-active="Главная"></div>
+  <div class="page_col">
+    <div class="h1">Заголовок</div>
+    <div class="card p_20 col gap_10" style="width: 480px">
+      <div class="h3">Карточка</div>
+      <div class="list_row" data-repeat="3">
+        <div class="ph" style="width: 30px; height: 40px"></div>
+        <div class="col gap_5 grow"><div class="bar" style="width: 140px; height: 10px"></div><div class="bar_light" style="width: 70px; height: 8px"></div></div>
+        <div class="label">N</div>
+      </div>
+    </div>
+    <button class="btn" style="height: 40px; width: 160px">Действие</button>
+  </div>
+</div>
+<script src="wire.js"></script>
+</body>
+</html>

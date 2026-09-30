@@ -12,6 +12,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PAGE_DIR = REPO_ROOT / "page"
 TEMPLATE_CONFIG = REPO_ROOT / "template" / "blueprint.json"
 INSTALL_DIR = "blueprint"
+MOCKUPS_TEMPLATE = REPO_ROOT / "template" / "mockups"
+MOCKUPS_DIR = Path("design") / "mockups"
 CONFIG_NAME = "blueprint.json"
 SERVER_NAME = "serve.py"
 
@@ -43,6 +45,12 @@ def init(args: argparse.Namespace) -> int:
         config["title"] = root.name
         config_file.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n")
         print(f"создан {INSTALL_DIR}/{CONFIG_NAME}")
+    mockups = root / MOCKUPS_DIR
+    if mockups.exists():
+        print(f"{MOCKUPS_DIR}/ уже есть, не трогаю")
+    else:
+        shutil.copytree(MOCKUPS_TEMPLATE, mockups)
+        print(f"создан {MOCKUPS_DIR}/: wire.css, wire.js, доска index.html, screens.json и образец Example.html")
     print(f"страница в {INSTALL_DIR}/, запуск: blueprint")
     return 0
 

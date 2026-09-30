@@ -1,0 +1,12 @@
+{
+  "screens": [
+    {
+      "file": "Example.html",
+      "title": "Пример",
+      "group": "Десктоп",
+      "size": [1280, 860],
+      "about": "Образец экрана: шапка, карточка со списком строк, кнопка",
+      "blocks": ["header", "card", "list_row", "btn"]
+    }
+  ]
+}

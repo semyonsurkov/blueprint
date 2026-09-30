@@ -116,6 +116,7 @@ const renderExcalidraw = async (tab, ready) => {
 const renderFrame = (tab, ready) => {
   const frame = document.createElement("iframe");
   frame.className = "frame";
+  frame.allow = "clipboard-write";
   frame.addEventListener("load", ready);
   frame.src = `/${tab.src}`;
   view.append(frame);

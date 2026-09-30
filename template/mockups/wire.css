@@ -1,0 +1,210 @@
+:root {
+  --ink: #1a1a1a;
+  --mute: #5c5c5c;
+  --line: #c9c9c9;
+  --fill: #ececec;
+  --fill_strong: #d4d4d4;
+  --bg: #ffffff;
+}
+
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); }
+* { box-sizing: border-box; }
+
+/* Размер бокса без border-box, как в исходных каркасах: рамка добавляется к width/height */
+.cbox { box-sizing: content-box; }
+
+/* Шапка сайта на десктопе (разметку вставляет wire.js) */
+.header { width: 100%; height: 64px; border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 32px; gap: 40px; flex-shrink: 0; }
+.header .btn { height: 40px; }
+.nav { display: flex; align-items: center; gap: 28px; }
+.nav_item { font-size: 15px; color: var(--mute); padding: 22px 4px; border-bottom: 2px solid transparent; }
+.nav_item_active { font-weight: 600; color: var(--ink); border-bottom-color: var(--ink); }
+
+/* Шапка на телефоне (разметку вставляет wire.js) */
+.header_mobile { width: 100%; height: 56px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; }
+.header_mobile .btn_icon { width: 44px; height: 44px; }
+
+/* Базовые классы: раскладка и текст */
+.t { color: var(--ink); font-weight: 400; line-height: 1.3; }
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.flex { display: flex; }
+
+/* Компоненты */
+.ph { background: var(--fill); border: 1px solid var(--line); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.bar { background: var(--fill_strong); border-radius: 3px; flex-shrink: 0; }
+.bar_light { background: var(--fill); border-radius: 3px; flex-shrink: 0; }
+.divider { height: 1px; background: var(--line); }
+.screen { display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+.pill_dark { background: var(--ink); color: var(--bg); border: 1px solid var(--ink); font-size: 12px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+.pill { color: var(--ink); border: 1px solid var(--ink); font-size: 12px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+.num_dot { border-radius: 50%; flex-shrink: 0; background: var(--ink); color: var(--bg); font-size: 12px; }
+.btn_fill { display: flex; align-items: center; justify-content: center; border: 1px solid var(--ink); background: var(--fill); border-radius: 8px; }
+.btn { background: var(--bg); color: var(--ink); border: 1px solid var(--ink); padding: 0 16px; font-size: 14px; border-radius: 8px; flex-shrink: 0; font-family: inherit; cursor: pointer; }
+.btn_primary { background: var(--ink); color: var(--bg); padding: 0 16px; font-size: 14px; border-radius: 8px; flex-shrink: 0; font-family: inherit; cursor: pointer; }
+.card { border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.track { flex-grow: 1; border-radius: 3px; background: var(--fill); }
+.task { display: flex; align-items: center; gap: 10px; background: var(--fill); border-radius: 8px; padding: 12px 14px; }
+.check { border-radius: 6px; border: 1px solid var(--ink); flex-shrink: 0; }
+.dot { border-radius: 50%; border: 2px solid var(--ink); }
+
+/* Составные: набор утилит под одним именем */
+.label { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 12px; color: var(--mute); }
+.label_sm { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 11px; color: var(--mute); }
+.label_xs { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 10px; color: var(--mute); }
+.tag_xs { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 10px; font-weight: 600; color: var(--mute); }
+.value { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 13px; font-weight: 700; }
+.value_md { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 14px; font-weight: 700; }
+.value_lg { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 15px; font-weight: 700; }
+.h1 { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 22px; font-weight: 700; }
+.h2 { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 20px; font-weight: 700; }
+.h3 { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 16px; font-weight: 700; }
+.link { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 14px; font-weight: 600; }
+.list_row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.table_row { display: flex; align-items: center; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.item_row { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.item_row_sm { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.page_col { display: flex; flex-direction: column; gap: 20px; padding: 28px 32px; }
+.page_row { display: flex; gap: 40px; padding: 28px 32px; }
+.stack_end { align-items: flex-end; display: flex; flex-direction: column; gap: 2px; }
+.stack_center { align-items: center; display: flex; flex-direction: column; gap: 4px; }
+.circle { background: var(--fill); justify-content: center; border-radius: 50%; display: flex; align-items: center; flex-shrink: 0; }
+.btn_icon { border: 1px solid var(--ink); background: var(--bg); justify-content: center; border-radius: 8px; display: flex; align-items: center; }
+.btn_sm { border: 1px solid var(--ink); background: var(--bg); color: var(--ink); font-size: 13px; white-space: nowrap; padding: 7px 14px; }
+.btn_sm_primary { border: 1px solid var(--ink); background: var(--ink); color: var(--bg); font-size: 13px; white-space: nowrap; padding: 7px 14px; }
+.checkbox { border: 2px solid var(--ink); background: var(--bg); color: var(--bg); font-size: 14px; border-radius: 6px; flex-shrink: 0; }
+.checkbox_on { border: 2px solid var(--ink); background: var(--ink); color: var(--bg); font-size: 14px; border-radius: 6px; flex-shrink: 0; }
+.pill_fill { border: 1px solid var(--line); background: var(--fill); border-radius: 999px; flex-shrink: 0; }
+.pill_ink { border: 1px solid var(--ink); background: var(--ink); border-radius: 999px; flex-shrink: 0; }
+.badge { border: 2px solid var(--ink); font-weight: 800; justify-content: center; border-radius: 14px; display: flex; align-items: center; flex-shrink: 0; }
+.card_clip { border: 1px solid var(--line); overflow: hidden; border-radius: 12px; }
+.side_panel { background: var(--fill); display: flex; flex-direction: column; gap: 16px; padding: 24px; }
+.tabbar { border-top: 1px solid var(--line); background: var(--bg); padding: 0 8px; display: flex; align-items: center; flex-shrink: 0; }
+.ring { border: 2px solid var(--line); border-radius: 50%; flex-shrink: 0; }
+.sheet { border: 1px solid var(--line); background: var(--bg); display: flex; flex-direction: column; gap: 14px; padding: 14px 16px; border-radius: 24px; }
+
+/* Утилиты: один класс, одно свойство */
+/* Flex */
+.grow { flex-grow: 1; }
+.wrap { flex-wrap: wrap; }
+
+/* Фон */
+.bg_fill { background: var(--fill); }
+.bg_ink { background: var(--ink); }
+.bg_line { background: var(--line); }
+.bg_mute { background: var(--mute); }
+.bg_white { background: var(--bg); }
+
+/* Рамки */
+.bdt_ink { border-top: 1px solid var(--ink); }
+.bdt_line { border-top: 1px solid var(--line); }
+.bdb_line { border-bottom: 1px solid var(--line); }
+.bdl_line { border-left: 1px solid var(--line); }
+.bd_ink { border: 1px solid var(--ink); }
+.bd_ink_2 { border: 2px solid var(--ink); }
+.bd_line { border: 1px solid var(--line); }
+.bd_line_2 { border: 2px solid var(--line); }
+.bdr_line { border-right: 1px solid var(--line); }
+
+/* Внутренние отступы */
+.p_0_20 { padding: 0 20px; }
+.p_0_8 { padding: 0 8px; }
+.p_6_0 { padding: 6px 0; }
+.p_6_4_4 { padding: 6px 4px 4px; }
+.p_7_14 { padding: 7px 14px; }
+.p_7_4 { padding: 7px 4px; }
+.p_8_0 { padding: 8px 0; }
+.p_10_12 { padding: 10px 12px; }
+.p_10_14 { padding: 10px 14px; }
+.p_10_16 { padding: 10px 16px; }
+.p_12_14 { padding: 12px 14px; }
+.p_12_16 { padding: 12px 16px; }
+.p_14 { padding: 14px; }
+.p_14_16 { padding: 14px 16px; }
+.p_14_20 { padding: 14px 20px; }
+.p_16 { padding: 16px; }
+.p_16_18 { padding: 16px 18px; }
+.p_16_20 { padding: 16px 20px; }
+.p_20 { padding: 20px; }
+.p_20_16 { padding: 20px 16px; }
+.p_22 { padding: 22px; }
+.p_24 { padding: 24px; }
+.p_24_16 { padding: 24px 16px; }
+.p_28_32 { padding: 28px 32px; }
+.p_40_32 { padding: 40px 32px; }
+
+/* Отступы между */
+.gap_0 { gap: 0px; }
+.gap_2 { gap: 2px; }
+.gap_4 { gap: 4px; }
+.gap_5 { gap: 5px; }
+.gap_6 { gap: 6px; }
+.gap_8 { gap: 8px; }
+.gap_10 { gap: 10px; }
+.gap_12 { gap: 12px; }
+.gap_14 { gap: 14px; }
+.gap_16 { gap: 16px; }
+.gap_18 { gap: 18px; }
+.gap_20 { gap: 20px; }
+.gap_24 { gap: 24px; }
+.gap_28 { gap: 28px; }
+.gap_32 { gap: 32px; }
+.gap_40 { gap: 40px; }
+
+/* Скругления */
+.r_round { border-radius: 50%; }
+.r_2 { border-radius: 2px; }
+.r_3 { border-radius: 3px; }
+.r_4 { border-radius: 4px; }
+.r_6 { border-radius: 6px; }
+.r_8 { border-radius: 8px; }
+.r_10 { border-radius: 10px; }
+.r_12 { border-radius: 12px; }
+.r_14 { border-radius: 14px; }
+.r_24 { border-radius: 24px; }
+.r_32 { border-radius: 32px; }
+.r_999 { border-radius: 999px; }
+
+/* Выравнивание */
+.self_center { align-self: center; }
+.self_flex_start { align-self: flex-start; }
+.self_stretch { align-self: stretch; }
+.ai_center { align-items: center; }
+.ai_end { align-items: flex-end; }
+.ai_start { align-items: flex-start; }
+.ai_stretch { align-items: stretch; }
+.jc_between { justify-content: space-between; }
+.jc_center { justify-content: center; }
+
+/* Размер текста */
+.fs_10 { font-size: 10px; }
+.fs_11 { font-size: 11px; }
+.fs_12 { font-size: 12px; }
+.fs_13 { font-size: 13px; }
+.fs_14 { font-size: 14px; }
+.fs_15 { font-size: 15px; }
+.fs_16 { font-size: 16px; }
+.fs_18 { font-size: 18px; }
+.fs_20 { font-size: 20px; }
+.fs_22 { font-size: 22px; }
+.fs_24 { font-size: 24px; }
+.fs_26 { font-size: 26px; }
+.fs_34 { font-size: 34px; }
+
+/* Вес текста */
+.fw_600 { font-weight: 600; }
+.fw_700 { font-weight: 700; }
+.fw_800 { font-weight: 800; }
+
+/* Прочее */
+.clip { overflow: hidden; }
+.shrink0 { flex-shrink: 0; }
+.nowrap { white-space: nowrap; }
+
+/* Цвет текста */
+.c_ink { color: var(--ink); }
+.c_mute { color: var(--mute); }
+.c_white { color: var(--bg); }
+
+/* Цвет приглушённого текста, перебивает составные */
+.mute { color: var(--mute); }
