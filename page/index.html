@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Проект</title>
+<link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/index.css">
+<link rel="stylesheet" href="./blueprint.css">
+<script>window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/";</script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.3.0",
+    "react/jsx-runtime": "https://esm.sh/react@19.3.0/jsx-runtime",
+    "react-dom": "https://esm.sh/react-dom@19.3.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.3.0/client",
+    "@excalidraw/excalidraw": "https://esm.sh/@excalidraw/excalidraw@0.18.1?external=react,react-dom",
+    "marked": "https://esm.sh/marked@18.0.14"
+  }
+}
+</script>
+</head>
+<body>
+<header class="top">
+  <strong id="title"></strong>
+  <nav id="tabs"></nav>
+  <span id="status"></span>
+</header>
+<main id="view"></main>
+<script type="module" src="./blueprint.js"></script>
+</body>
+</html>

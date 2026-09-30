@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+PAGE_DIR = REPO_ROOT / "page"
+TEMPLATE_CONFIG = REPO_ROOT / "template" / "blueprint.json"
+INSTALL_DIR = "blueprint"
+CONFIG_NAME = "blueprint.json"
+SERVER_NAME = "serve.py"
+
+
+def find_project_root(start: Path) -> Path | None:
+    for candidate in (start, *start.parents):
+        if (candidate / INSTALL_DIR / CONFIG_NAME).is_file():
+            return candidate
+    return None
+
+
+def copy_page(target: Path) -> list[str]:
+    target.mkdir(exist_ok=True)
+    names = sorted(item.name for item in PAGE_DIR.iterdir() if item.is_file())
+    for name in names:
+        shutil.copy2(PAGE_DIR / name, target / name)
+    return names
+
+
+def init(args: argparse.Namespace) -> int:
+    root = Path.cwd()
+    target = root / INSTALL_DIR
+    copy_page(target)
+    config_file = target / CONFIG_NAME
+    if config_file.exists():
+        print(f"{INSTALL_DIR}/{CONFIG_NAME} уже есть, не трогаю")
+    else:
+        config = json.loads(TEMPLATE_CONFIG.read_text())
+        config["title"] = root.name
+        config_file.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n")
+        print(f"создан {INSTALL_DIR}/{CONFIG_NAME}")
+    print(f"страница в {INSTALL_DIR}/, запуск: blueprint")
+    return 0
+
+
+def update(args: argparse.Namespace) -> int:
+    root = find_project_root(Path.cwd())
+    if root is None:
+        print("blueprint/ не найден, сначала blueprint init", file=sys.stderr)
+        return 1
+    names = copy_page(root / INSTALL_DIR)
+    print(f"обновлено: {', '.join(names)}; {CONFIG_NAME} не тронут")
+    return 0
+
+
+def serve(args: argparse.Namespace) -> int:
+    root = find_project_root(Path.cwd())
+    if root is None:
+        print("blueprint/ не найден, сначала blueprint init", file=sys.stderr)
+        return 1
+    server = root / INSTALL_DIR / SERVER_NAME
+    os.chdir(root)
+    os.execv(sys.executable, [sys.executable, str(server)])
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="blueprint", description="Локальная страница проекта: схема, макеты, roadmap")
+    commands = parser.add_subparsers(dest="command")
+    commands.add_parser("init", help="положить страницу в ./blueprint/").set_defaults(run=init)
+    commands.add_parser("update", help="обновить код страницы, конфиг не трогать").set_defaults(run=update)
+    commands.add_parser("serve", help="запустить сервер (по умолчанию)").set_defaults(run=serve)
+    args = parser.parse_args()
+    return getattr(args, "run", serve)(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

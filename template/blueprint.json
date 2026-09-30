@@ -1,0 +1,25 @@
+{
+  "title": "Проект",
+  "port": 5190,
+  "tabs": [
+    {
+      "id": "architecture",
+      "title": "Архитектура",
+      "type": "excalidraw",
+      "file": "docs/architecture.excalidraw",
+      "docs": ["docs/stack.md"]
+    },
+    {
+      "id": "mockups",
+      "title": "Макеты",
+      "type": "frame",
+      "src": "design/mockups/index.html"
+    },
+    {
+      "id": "mvp",
+      "title": "MVP",
+      "type": "markdown",
+      "docs": ["docs/roadmap.md", "IDEAS.md"]
+    }
+  ]
+}
