@@ -27,8 +27,10 @@ try { const saved = localStorage.getItem("blueprint_theme"); if (saved) document
 <header class="top">
   <strong id="title"></strong>
   <nav id="tabs"></nav>
-  <span id="status"></span>
-  <button id="theme_toggle" type="button" aria-label="Сменить тему"></button>
+  <div id="actions">
+    <span id="status"></span>
+    <button id="theme_toggle" type="button" aria-label="Сменить тему"></button>
+  </div>
 </header>
 <main id="view"></main>
 <script type="module" src="./blueprint.js"></script>

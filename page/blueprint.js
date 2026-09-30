@@ -80,7 +80,7 @@ const renderExcalidraw = async (tab) => {
   await renderDocs(docs, drawer);
   const toggle = document.createElement("button");
   toggle.id = "docs_toggle";
-  toggle.textContent = "Документы";
+  toggle.textContent = tab.docs_label ?? "Документы";
   const setOpen = (open) => {
     drawer.hidden = !open;
     toggle.setAttribute("aria-pressed", String(open));
@@ -88,7 +88,7 @@ const renderExcalidraw = async (tab) => {
   toggle.addEventListener("click", () => setOpen(drawer.hidden));
   const onKey = (event) => { if (event.key === "Escape") setOpen(false); };
   addEventListener("keydown", onKey);
-  status.after(toggle);
+  themeToggle.after(toggle);
   return () => {
     removeEventListener("keydown", onKey);
     toggle.remove();
