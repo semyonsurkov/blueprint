@@ -15,12 +15,14 @@ const fetchText = async (path) => {
 
 const renderDocs = async (docs, container) => {
   for (const item of docs) {
-    const { path, collapsed = false } = typeof item === "string" ? { path: item } : item;
+    const { path, collapsed } = typeof item === "string" ? { path: item } : item;
+    const foldable = collapsed !== undefined;
     const text = await fetchText(path);
     const body = text ? marked.parse(text) : "Файл не найден";
-    const section = document.createElement(collapsed ? "details" : "section");
+    const section = document.createElement(foldable ? "details" : "section");
     section.className = "doc";
-    section.innerHTML = collapsed
+    section.open = collapsed === false;
+    section.innerHTML = foldable
       ? `<summary class="source">${path}</summary>${body}`
       : `<div class="source">${path}</div>${body}`;
     container.append(section);

@@ -7,7 +7,9 @@
       "title": "Архитектура",
       "type": "excalidraw",
       "file": "docs/architecture.excalidraw",
-      "docs": ["docs/stack.md"]
+      "docs": [
+        "docs/stack.md"
+      ]
     },
     {
       "id": "mockups",
@@ -19,7 +21,16 @@
       "id": "mvp",
       "title": "MVP",
       "type": "markdown",
-      "docs": ["docs/roadmap.md", "IDEAS.md"]
+      "docs": [
+        {
+          "path": "docs/roadmap.md",
+          "collapsed": false
+        },
+        {
+          "path": "IDEAS.md",
+          "collapsed": true
+        }
+      ]
     }
   ]
 }
