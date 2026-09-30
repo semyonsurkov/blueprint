@@ -6,6 +6,9 @@
 <title>Проект</title>
 <link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/index.css">
 <link rel="stylesheet" href="./blueprint.css">
+<script>
+try { const saved = localStorage.getItem("blueprint_theme"); if (saved) document.documentElement.dataset.theme = saved; } catch {}
+</script>
 <script>window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/";</script>
 <script type="importmap">
 {
@@ -25,6 +28,7 @@
   <strong id="title"></strong>
   <nav id="tabs"></nav>
   <span id="status"></span>
+  <button id="theme_toggle" type="button" aria-label="Сменить тему"></button>
 </header>
 <main id="view"></main>
 <script type="module" src="./blueprint.js"></script>

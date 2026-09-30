@@ -4,9 +4,16 @@ import { Excalidraw, serializeAsJSON } from "@excalidraw/excalidraw";
 import { marked } from "marked";
 
 const SAVE_DELAY_MS = 800;
+const THEME_KEY = "blueprint_theme";
 const view = document.getElementById("view");
 const status = document.getElementById("status");
 let unmount = () => {};
+
+const currentTheme = () => document.documentElement.dataset.theme
+  ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
+const themeToggle = document.getElementById("theme_toggle");
+const showTheme = () => { themeToggle.textContent = currentTheme() === "dark" ? "Светлая" : "Тёмная"; };
 
 const fetchText = async (path) => {
   const response = await fetch(`/${path}`);
@@ -60,6 +67,7 @@ const renderExcalidraw = async (tab) => {
   root.render(React.createElement(Excalidraw, {
     initialData: { elements: scene.elements, appState: { viewBackgroundColor: "#ffffff" }, scrollToContent: true },
     langCode: "ru-RU",
+    theme: currentTheme(),
     excalidrawAPI: (api) => setTimeout(() => api.scrollToContent(undefined, { fitToContent: true }), 0),
     onChange,
   }));
@@ -127,3 +135,12 @@ document.getElementById("tabs").append(...config.tabs.map((tab) => {
 }));
 addEventListener("hashchange", () => open(config, location.hash.slice(1)));
 open(config, location.hash.slice(1));
+
+showTheme();
+themeToggle.addEventListener("click", () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem(THEME_KEY, next); } catch {}
+  showTheme();
+  open(config, location.hash.slice(1));
+});
