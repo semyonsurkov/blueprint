@@ -157,6 +157,17 @@ document.getElementById("tabs").replaceChildren(...config.tabs.map((tab) => {
   link.textContent = tab.title;
   return link;
 }));
+try {
+  localStorage.setItem("blueprint_shell", JSON.stringify({
+    title: config.title,
+    tabs: config.tabs.map((tab) => ({
+      id: tab.id,
+      title: tab.title,
+      kind: tab.type,
+      docsLabel: tab.type === "excalidraw" && tab.docs?.length ? (tab.docs_label ?? "Документы") : null,
+    })),
+  }));
+} catch {}
 addEventListener("hashchange", () => open(config, location.hash.slice(1)));
 open(config, location.hash.slice(1));
 

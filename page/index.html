@@ -39,6 +39,36 @@ document.documentElement.dataset.theme = theme;
   </div>
 </header>
 <main id="view"><div class="sk_page sk_canvas"><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i><i class="sk"></i></div></main>
+<script>
+try {
+  const shell = JSON.parse(localStorage.getItem("blueprint_shell") || "null");
+  if (shell) {
+    const id = location.hash.slice(1);
+    const tab = shell.tabs.find((item) => item.id === id) ?? shell.tabs[0];
+    document.getElementById("title").textContent = shell.title;
+    const nav = document.getElementById("tabs");
+    nav.replaceChildren(...shell.tabs.map((item) => {
+      const link = document.createElement("a");
+      link.href = "#" + item.id;
+      link.textContent = item.title;
+      if (item === tab) link.setAttribute("aria-current", "page");
+      return link;
+    }));
+    const slot = document.getElementById("docs_slot");
+    if (tab.docsLabel) {
+      const button = document.createElement("button");
+      button.id = "docs_toggle";
+      button.textContent = tab.docsLabel;
+      slot.replaceWith(button);
+    } else slot.remove();
+    if (tab.kind === "markdown") {
+      const page = document.getElementById("view").firstElementChild;
+      page.className = "sk_page sk_text";
+      page.innerHTML = '<i class="sk sk_heading"></i><i class="sk"></i><i class="sk"></i><i class="sk sk_short"></i><i class="sk"></i><i class="sk"></i><i class="sk sk_short"></i>';
+    }
+  }
+} catch {}
+</script>
 <script type="module" src="./blueprint.js"></script>
 </body>
 </html>
