@@ -57,8 +57,29 @@ const renderExcalidraw = async (tab) => {
     excalidrawAPI: (api) => setTimeout(() => api.scrollToContent(undefined, { fitToContent: true }), 0),
     onChange,
   }));
-  await renderDocs(tab.docs ?? [], view);
-  return () => root.unmount();
+  const docs = tab.docs ?? [];
+  if (!docs.length) return () => root.unmount();
+  const drawer = document.createElement("aside");
+  drawer.className = "drawer";
+  drawer.hidden = true;
+  view.append(drawer);
+  await renderDocs(docs, drawer);
+  const toggle = document.createElement("button");
+  toggle.id = "docs_toggle";
+  toggle.textContent = "Документы";
+  const setOpen = (open) => {
+    drawer.hidden = !open;
+    toggle.setAttribute("aria-pressed", String(open));
+  };
+  toggle.addEventListener("click", () => setOpen(drawer.hidden));
+  const onKey = (event) => { if (event.key === "Escape") setOpen(false); };
+  addEventListener("keydown", onKey);
+  status.after(toggle);
+  return () => {
+    removeEventListener("keydown", onKey);
+    toggle.remove();
+    root.unmount();
+  };
 };
 
 const renderFrame = (tab) => {

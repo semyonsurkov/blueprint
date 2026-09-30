@@ -28,7 +28,7 @@ html, body {
 
 .top strong { font-size: 17px; }
 
-#tabs { display: flex; gap: 4px; flex-grow: 1; }
+#tabs { display: flex; gap: 4px; }
 
 #tabs a {
   padding: 6px 12px;
@@ -39,11 +39,40 @@ html, body {
 
 #tabs a[aria-current="page"] { background: var(--bg_soft); color: var(--ink); font-weight: 600; }
 
-#status { font-size: 13px; color: var(--mute); }
+#status { margin-left: auto; font-size: 13px; color: var(--mute); }
 
 #view { height: calc(100% - var(--header_h)); overflow: auto; }
 
-.canvas { height: 72vh; border-bottom: 1px solid var(--line); }
+#view { position: relative; }
+
+.canvas { height: 100%; }
+
+#docs_toggle {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+#docs_toggle[aria-pressed="true"] { background: var(--bg_soft); font-weight: 600; }
+
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(760px, 92%);
+  overflow: auto;
+  background: var(--bg);
+  border-left: 1px solid var(--line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+}
+
+.drawer[hidden] { display: none; }
 
 .frame { width: 100%; height: 100%; border: 0; display: block; }
 
