@@ -55,7 +55,7 @@ const mountNotes = async () => {
 };
 
 const annotate = new URLSearchParams(location.search).has("annotate");
-if (annotate || window.top === window) {
+if (window.WIRE_ANNOTATE || annotate || window.top === window) {
   mountNotes();
   if (annotate) {
     const back = document.createElement("a");
