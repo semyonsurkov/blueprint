@@ -88,3 +88,17 @@ html, body {
 .doc th { background: var(--bg_soft); }
 
 .doc code { background: var(--bg_soft); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+
+details.doc { padding-top: 0; padding-bottom: 16px; }
+
+details.doc > summary.source {
+  margin: 0;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  border-top: 1px solid var(--line);
+}
+
+details.doc[open] > summary.source { margin-bottom: 16px; }

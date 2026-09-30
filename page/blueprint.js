@@ -13,12 +13,16 @@ const fetchText = async (path) => {
   return response.ok ? response.text() : null;
 };
 
-const renderDocs = async (paths, container) => {
-  for (const path of paths) {
+const renderDocs = async (docs, container) => {
+  for (const item of docs) {
+    const { path, collapsed = false } = typeof item === "string" ? { path: item } : item;
     const text = await fetchText(path);
-    const section = document.createElement("section");
+    const body = text ? marked.parse(text) : "Файл не найден";
+    const section = document.createElement(collapsed ? "details" : "section");
     section.className = "doc";
-    section.innerHTML = `<div class="source">${path}</div>${text ? marked.parse(text) : "Файл не найден"}`;
+    section.innerHTML = collapsed
+      ? `<summary class="source">${path}</summary>${body}`
+      : `<div class="source">${path}</div>${body}`;
     container.append(section);
   }
 };
