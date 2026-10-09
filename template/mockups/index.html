@@ -46,7 +46,19 @@ html::-webkit-scrollbar { display: none; }
 .panning, .panning * { cursor: grab !important; user-select: none; }
 .dragging, .dragging * { cursor: grabbing !important; }
 .zoom { position: fixed; left: var(--spacing_x2); bottom: var(--spacing_x2); z-index: 1000; }
-.zoom output { min-width: 44px; text-align: center; color: var(--text_secondary); font: var(--font_weight_medium) var(--font_size_control) / 1 var(--font_sans); }
+.zoom .zoom_value {
+  width: 56px;
+  height: var(--control_height);
+  border: 1px solid transparent;
+  border-radius: var(--radius_md);
+  background: transparent;
+  color: var(--text_secondary);
+  font: var(--font_weight_medium) var(--font_size_control) / 1 var(--font_sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.zoom .zoom_value:hover { background: var(--surface_hover); color: var(--text); }
+.zoom .zoom_value:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus_ring); background: var(--surface); color: var(--text); }
 </style>
 <div id="space"><div id="board"></div></div>
 <script type="module">
@@ -60,6 +72,8 @@ const PAD_Y = 40;
 const MIN_SCALE = 0.08;
 const MAX_SCALE = 2;
 const FIT_MAX_SCALE = 0.6;
+const ACTUAL_SIZE = 1;
+const ZOOM_STEPS = [0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2];
 const VIEW_KEY = "mockups_view_v2";
 const space = document.getElementById("space");
 const board = document.getElementById("board");
@@ -120,22 +134,40 @@ const zoomTo = (next, clientX = innerWidth / 2, clientY = innerHeight / 2) => {
   scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
   apply();
   scrollTo(PAD_X + anchorX * scale - clientX, PAD_Y + anchorY * scale - clientY);
-  zoomLabel.value = `${Math.round(scale * 100)}%`;
+  showScale();
   remember();
 };
 
 const zoom = document.createElement("div");
 zoom.className = "zoom ui_toolbar";
-zoom.innerHTML = '<button type="button" class="ui_icon_button" data-variant="ghost" data-step="0.8" aria-label="Уменьшить">−</button><output></output><button type="button" class="ui_icon_button" data-variant="ghost" data-step="1.25" aria-label="Увеличить">+</button><button type="button" class="ui_button" data-variant="ghost" data-fit>По ширине</button>';
-const zoomLabel = zoom.querySelector("output");
-zoomLabel.value = `${Math.round(scale * 100)}%`;
+zoom.innerHTML = '<button type="button" class="ui_icon_button" data-variant="ghost" data-step="-1" aria-label="Уменьшить">−</button><input class="zoom_value" inputmode="numeric" aria-label="Масштаб в процентах" title="Введите масштаб, Shift+0 возвращает 100%"><button type="button" class="ui_icon_button" data-variant="ghost" data-step="1" aria-label="Увеличить">+</button><button type="button" class="ui_button" data-variant="ghost" data-fit>По ширине</button>';
+const zoomLabel = zoom.querySelector(".zoom_value");
+const showScale = () => { zoomLabel.value = `${Math.round(scale * 100)}%`; };
+const applyTyped = () => {
+  const percent = Number.parseFloat(zoomLabel.value.replace(",", "."));
+  if (Number.isFinite(percent) && percent > 0) zoomTo(percent / 100);
+  else showScale();
+};
+zoomLabel.addEventListener("focus", () => zoomLabel.select());
+zoomLabel.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") zoomLabel.blur();
+  if (event.key === "Escape") {
+    showScale();
+    zoomLabel.blur();
+  }
+});
+zoomLabel.addEventListener("change", applyTyped);
+showScale();
+const nextStep = (direction) => (direction > 0
+  ? ZOOM_STEPS.find((step) => step > scale + 0.001) ?? MAX_SCALE
+  : ZOOM_STEPS.findLast((step) => step < scale - 0.001) ?? MIN_SCALE);
 zoom.addEventListener("click", (event) => {
   const button = event.target.closest("button");
   if (!button) return;
   if (button.dataset.fit !== undefined) {
     zoomTo(Math.min(FIT_MAX_SCALE, Math.max(MIN_SCALE, (document.documentElement.clientWidth - PAD_X * 2) / content.width)), 0, 0);
     scrollTo(0, 0);
-  } else zoomTo(scale * Number(button.dataset.step));
+  } else zoomTo(nextStep(Number(button.dataset.step)));
 });
 document.body.append(zoom);
 
@@ -143,6 +175,11 @@ let spaceHeld = false;
 let drag = null;
 const typing = (element) => element.closest("input, textarea, [contenteditable]");
 addEventListener("keydown", (event) => {
+  if (event.code === "Digit0" && event.shiftKey && !typing(event.target)) {
+    event.preventDefault();
+    zoomTo(ACTUAL_SIZE);
+    return;
+  }
   if (event.code !== "Space" || typing(event.target)) return;
   event.preventDefault();
   spaceHeld = true;
