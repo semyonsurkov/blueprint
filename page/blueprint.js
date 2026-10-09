@@ -2,6 +2,10 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { Excalidraw, convertToExcalidrawElements, serializeAsJSON } from "@excalidraw/excalidraw";
 import { marked } from "marked";
+import { gfmHeadingId } from "marked-gfm-heading-id";
+import DOMPurify from "dompurify";
+
+marked.use(gfmHeadingId());
 
 const SAVE_DELAY_MS = 800;
 const THEME_KEY = "blueprint_theme";
@@ -21,18 +25,70 @@ const fetchText = async (path) => {
   return response.ok ? response.text() : null;
 };
 
+
+const resolvePath = (from, href) => {
+  const parts = from.split("/").slice(0, -1);
+  for (const part of href.split("/")) {
+    if (part === "..") parts.pop();
+    else if (part && part !== ".") parts.push(part);
+  }
+  return parts.join("/");
+};
+
+const MISSING_FILE = "Файл не найден";
+
+const markdown = (text, path) => {
+  const body = document.createElement("div");
+  body.className = "doc_body";
+  if (text === null) {
+    body.textContent = MISSING_FILE;
+    return body;
+  }
+  body.innerHTML = DOMPurify.sanitize(marked.parse(text));
+  for (const image of body.querySelectorAll("img[src]")) {
+    const src = image.getAttribute("src");
+    if (!/^([a-z]+:|\/|#)/i.test(src)) image.src = `/${resolvePath(path, src)}`;
+  }
+  return body;
+};
+
+const sourceLabel = (tag, path) => {
+  const label = document.createElement(tag);
+  label.className = "source";
+  label.textContent = path;
+  return label;
+};
+
+const decodeHref = (value) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const scrollToAnchor = (container, anchor) => {
+  container.querySelector(`[id="${CSS.escape(anchor)}"]`)?.scrollIntoView({ block: "start" });
+};
+
+const keepAnchorsInside = (container) => {
+  container.addEventListener("click", (event) => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link) return;
+    event.preventDefault();
+    scrollToAnchor(container, decodeHref(link.getAttribute("href").slice(1)));
+  });
+};
+
 const renderDocs = async (docs, container) => {
   for (const item of docs) {
     const { path, collapsed } = typeof item === "string" ? { path: item } : item;
     const foldable = collapsed !== undefined;
-    const text = await fetchText(path);
-    const body = text ? marked.parse(text) : "Файл не найден";
     const section = document.createElement(foldable ? "details" : "section");
     section.className = "doc";
     section.open = collapsed === false;
-    section.innerHTML = foldable
-      ? `<summary class="source">${path}</summary>${body}`
-      : `<div class="source">${path}</div>${body}`;
+    section.append(sourceLabel(foldable ? "summary" : "div", path), markdown(await fetchText(path), path));
+    keepAnchorsInside(section);
     container.append(section);
   }
 };
@@ -55,18 +111,10 @@ const renderMermaid = async (container) => {
   }
 };
 
-const resolvePath = (from, href) => {
-  const parts = from.split("/").slice(0, -1);
-  for (const part of href.split("/")) {
-    if (part === "..") parts.pop();
-    else if (part && part !== ".") parts.push(part);
-  }
-  return parts.join("/");
-};
 
 const showDocument = async (article, path, onNavigate) => {
   const text = await fetchText(path);
-  article.innerHTML = `<div class="source">${path}</div>${text ? marked.parse(text) : "Файл не найден"}`;
+  article.replaceChildren(sourceLabel("div", path), markdown(text, path));
   for (const link of article.querySelectorAll("a[href]")) {
     const href = link.getAttribute("href");
     if (/^([a-z]+:|#|\/)/i.test(href)) continue;
@@ -74,7 +122,7 @@ const showDocument = async (article, path, onNavigate) => {
     if (!file.endsWith(".md")) continue;
     link.addEventListener("click", (event) => {
       event.preventDefault();
-      onNavigate(resolvePath(path, file), anchor);
+      onNavigate(resolvePath(path, decodeHref(file)), anchor && decodeHref(anchor));
     });
   }
   await renderMermaid(article);
@@ -173,7 +221,10 @@ const renderLibrary = (buildNav) => async (tab, ready, initialPath) => {
   const files = await fetchTree(tab.dir);
   const { node, fallback } = await buildNav(tab, files);
   nav.append(node);
+  let shown = 0;
+  keepAnchorsInside(article);
   const show = async (path, anchor) => {
+    const mine = ++shown;
     for (const link of nav.querySelectorAll("a[data-path]")) {
       if (link.dataset.path === path) {
         link.setAttribute("aria-current", "page");
@@ -181,11 +232,14 @@ const renderLibrary = (buildNav) => async (tab, ready, initialPath) => {
       } else link.removeAttribute("aria-current");
     }
     rememberFolders(tab.id, nav);
-    await showDocument(article, path, (next, nextAnchor) => {
-      history.replaceState(null, "", `#${tab.id}/${next}`);
+    const target = document.createElement("article");
+    await showDocument(target, path, (next, nextAnchor) => {
+      history.replaceState(null, "", tabHash(tab.id, next));
       show(next, nextAnchor);
     });
-    if (anchor) article.querySelector(`[id="${CSS.escape(anchor)}"]`)?.scrollIntoView();
+    if (mine !== shown) return;
+    article.replaceChildren(...target.childNodes);
+    if (anchor) scrollToAnchor(article, anchor);
     else article.scrollTop = 0;
   };
   nav.addEventListener("toggle", () => rememberFolders(tab.id, nav), true);
@@ -193,7 +247,7 @@ const renderLibrary = (buildNav) => async (tab, ready, initialPath) => {
     const link = event.target.closest("a[data-path]");
     if (!link) return;
     event.preventDefault();
-    history.replaceState(null, "", `#${tab.id}/${link.dataset.path}`);
+    history.replaceState(null, "", tabHash(tab.id, link.dataset.path));
     show(link.dataset.path);
   });
   const first = initialPath && files.includes(initialPath) ? initialPath : fallback;
@@ -338,12 +392,18 @@ const renderMarkdown = async (tab, ready) => {
   return () => {};
 };
 
+const tabHash = (id, path) => `#${encodeURIComponent(id)}/${path.split("/").map(encodeURIComponent).join("/")}`;
+
 const renderers = { excalidraw: renderExcalidraw, frame: renderFrame, markdown: renderMarkdown, docs: renderDocsTab, adr: renderAdrTab };
 const textTabs = new Set(["markdown", "docs", "adr"]);
 
 const parseHash = () => {
-  const [id, ...rest] = decodeURIComponent(location.hash.slice(1)).split("/");
-  return { id, path: rest.join("/") };
+  const [id, ...rest] = location.hash.slice(1).split("/");
+  try {
+    return { id: decodeURIComponent(id), path: rest.map(decodeURIComponent).join("/") };
+  } catch {
+    return { id, path: "" };
+  }
 };
 
 const open = async (config, id, path) => {
