@@ -1,3 +1,6 @@
+import { pathOf, watch } from "./live.js";
+import { rerenderScreens } from "./screen.js";
+
 const WIDE_COLUMNS = 2;
 const NARROW_COLUMNS = 7;
 const WIDE_FROM = 1000;
@@ -37,9 +40,16 @@ const remember = () => {
   try { sessionStorage.setItem(VIEW_KEY, JSON.stringify({ scale, scrollX, scrollY })); } catch {}
 };
 
+const fetchScreen = async (file) => {
+  const response = await fetch(file);
+  if (!response.ok) throw new Error(`${file} не загрузился: сервер ответил ${response.status}`);
+  const root = new DOMParser().parseFromString(await response.text(), "text/html").body.firstElementChild;
+  if (!root) throw new Error(`В ${file} нет разметки экрана`);
+  return root;
+};
+
 const loadScreen = async (holder, file) => {
-  const html = new DOMParser().parseFromString(await (await fetch(file)).text(), "text/html");
-  holder.append(html.body.firstElementChild);
+  holder.append(await fetchScreen(file));
 };
 
 const loadManifest = async () => {
@@ -186,3 +196,54 @@ addEventListener("wheel", (event) => {
   event.preventDefault();
   zoomTo(scale * Math.exp(-event.deltaY * 0.01), event.clientX, event.clientY);
 }, { passive: false });
+
+const BOARD_FILES = new Set(["index.html", "wire.js", "screens.json"]);
+const folder = pathOf(location.href).replace(/[^/]*$/, "");
+const liveError = document.createElement("div");
+liveError.className = "live_error";
+liveError.hidden = true;
+document.body.append(liveError);
+
+const showLiveError = (message) => {
+  liveError.textContent = `${message}. На доске прежняя версия, исправь файл, и она обновится`;
+  liveError.hidden = false;
+};
+
+const replaceScreen = async (file) => {
+  const holder = document.getElementById(`screen_${file.replace(".html", "")}`);
+  if (!holder) return false;
+  const fresh = await fetchScreen(file);
+  holder.querySelector(":scope > :not(.caption)")?.replaceWith(fresh);
+  return true;
+};
+
+watch(async (paths) => {
+  const names = [...paths].filter((path) => path.startsWith(folder)).map((path) => path.slice(folder.length)).filter((name) => !name.includes("/"));
+  if (!names.length) return;
+  if (names.some((name) => BOARD_FILES.has(name))) {
+    if (names.includes("screens.json")) {
+      try {
+        await loadManifest();
+      } catch (error) {
+        showLiveError(error.message);
+        return;
+      }
+    }
+    remember();
+    location.reload();
+    return;
+  }
+  const changed = [];
+  for (const name of names.filter((item) => item.endsWith(".html"))) {
+    try {
+      if (await replaceScreen(name)) changed.push(name);
+    } catch (error) {
+      showLiveError(error.message);
+      return;
+    }
+  }
+  if (!changed.length) return;
+  liveError.hidden = true;
+  await rerenderScreens();
+  dispatchEvent(new CustomEvent("blueprint:screens", { detail: changed }));
+});

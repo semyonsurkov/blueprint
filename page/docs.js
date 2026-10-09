@@ -1,4 +1,5 @@
 import { iconElement } from "./icons.js";
+import { watch } from "./live.js";
 import { resizableSidebar } from "./sidebar.js";
 import { fetchText, handleLinks, markdown, renderMermaid, scrollToAnchor, sourceLabel } from "./markdown.js";
 
@@ -133,14 +134,13 @@ const renderLibrary = (buildNav) => async (tab, ready, ctx, initialPath) => {
   layout.append(nav, article);
   ctx.view.append(layout);
   resizableSidebar(layout);
-  const files = await fetchTree(tab.dir);
+  let files = await fetchTree(tab.dir);
   const { node, fallback, decorate } = await buildNav(tab, files);
   nav.append(node);
   let shown = 0;
   let currentPath = "";
   handleLinks(article, () => currentPath, ctx.openDocument);
-  const show = async (path, anchor) => {
-    const mine = ++shown;
+  const markCurrent = (path) => {
     for (const link of nav.querySelectorAll("a[data-path]")) {
       if (link.dataset.path === path) {
         link.setAttribute("aria-current", "page");
@@ -148,6 +148,11 @@ const renderLibrary = (buildNav) => async (tab, ready, ctx, initialPath) => {
       } else link.removeAttribute("aria-current");
     }
     rememberFolders(tab.id, nav);
+  };
+  const show = async (path, anchor, keepScroll = false) => {
+    const mine = ++shown;
+    const scroll = article.scrollTop;
+    markCurrent(path);
     try {
       const body = await markdown(await fetchText(path), path);
       if (mine !== shown) return;
@@ -162,8 +167,21 @@ const renderLibrary = (buildNav) => async (tab, ready, ctx, initialPath) => {
     }
     if (mine !== shown) return;
     if (anchor) scrollToAnchor(article, anchor);
-    else article.scrollTop = 0;
+    else article.scrollTop = keepScroll ? scroll : 0;
   };
+  const prefix = inside(tab.dir);
+  const stopWatching = watch(async (paths) => {
+    const touched = [...paths].filter((path) => path.startsWith(prefix) && path.endsWith(".md"));
+    if (!touched.length) return;
+    try {
+      files = await fetchTree(tab.dir);
+      nav.replaceChildren((await buildNav(tab, files)).node);
+    } catch {
+      return;
+    }
+    markCurrent(currentPath);
+    if (touched.includes(currentPath)) show(currentPath, null, true);
+  });
   nav.addEventListener("toggle", () => rememberFolders(tab.id, nav), true);
   nav.addEventListener("click", (event) => {
     const link = event.target.closest("a[data-path]");
@@ -185,7 +203,10 @@ const renderLibrary = (buildNav) => async (tab, ready, ctx, initialPath) => {
   ready();
   const handle = { id: tab.id, show, has: (path) => files.includes(path) };
   ctx.setActiveTab(handle);
-  return () => ctx.releaseActiveTab(handle);
+  return () => {
+    stopWatching();
+    ctx.releaseActiveTab(handle);
+  };
 };
 
 export const renderDocsTab = renderLibrary(async (tab, files) => {

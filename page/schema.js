@@ -1,4 +1,5 @@
-import { fileUrl, renderDocs } from "./markdown.js";
+import { watch } from "./live.js";
+import { fetchText, fileUrl, renderDocs } from "./markdown.js";
 
 const SAVE_DELAY_MS = 800;
 const EXCALIDRAW_CSS = "https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/index.css";
@@ -28,7 +29,7 @@ const loadScene = async (tab) => {
 const saveScene = async (serializeAsJSON, tab, elements, appState, files) => {
   const body = serializeAsJSON(elements, appState, files, "local");
   const response = await fetch(`/api/save?path=${encodeURIComponent(tab.file)}`, { method: "POST", body }).catch(() => null);
-  return Boolean(response?.ok);
+  return response?.ok ? body : null;
 };
 
 const docsDrawer = (tab, ctx) => {
@@ -38,9 +39,18 @@ const docsDrawer = (tab, ctx) => {
   drawer.hidden = true;
   drawer.append(ctx.skeleton("text"));
   ctx.view.append(drawer);
-  renderDocs(tab.docs, drawer, ctx)
-    .catch((error) => drawer.append(Object.assign(document.createElement("p"), { className: "doc", textContent: error.message })))
-    .finally(() => drawer.querySelector(".sk_page")?.remove());
+  const fill = async () => {
+    const content = document.createElement("div");
+    await renderDocs(tab.docs, content, ctx)
+      .catch((error) => content.append(Object.assign(document.createElement("p"), { className: "doc", textContent: error.message })));
+    const scroll = drawer.scrollTop;
+    drawer.replaceChildren(...content.childNodes);
+    drawer.scrollTop = scroll;
+  };
+  fill();
+  const stopWatching = watch((paths) => {
+    if (tab.docs.some((item) => paths.has(typeof item === "string" ? item : item.path))) fill();
+  });
   const setOpen = (open) => {
     drawer.hidden = !open;
     toggle.setAttribute("aria-pressed", String(open));
@@ -48,7 +58,10 @@ const docsDrawer = (tab, ctx) => {
   toggle.addEventListener("click", () => setOpen(drawer.hidden));
   const onKey = (event) => { if (event.key === "Escape") setOpen(false); };
   addEventListener("keydown", onKey);
-  return () => removeEventListener("keydown", onKey);
+  return () => {
+    stopWatching();
+    removeEventListener("keydown", onKey);
+  };
 };
 
 export const renderSchema = async (tab, ready, ctx) => {
@@ -63,21 +76,27 @@ export const renderSchema = async (tab, ready, ctx) => {
     closeDrawer();
     throw error;
   }
-  const [[react, dom, { Excalidraw, serializeAsJSON }], scene] = loaded;
+  const [[react, dom, { CaptureUpdateAction, Excalidraw, restoreElements, serializeAsJSON }], scene] = loaded;
   const React = react.default ?? react;
   let timer;
   let pending = null;
   let saving = Promise.resolve();
   let disposed = false;
   let lastSaved = JSON.stringify(scene.elements);
+  let lastWritten = null;
+  let api = null;
   const flush = async () => {
     clearTimeout(timer);
     if (!pending) return;
     const { snapshot, args } = pending;
     pending = null;
     saving = saving.then(async () => {
-      const saved = await saveScene(serializeAsJSON, tab, ...args).catch(() => false);
-      if (saved) lastSaved = snapshot;
+      const written = await saveScene(serializeAsJSON, tab, ...args).catch(() => null);
+      const saved = written !== null;
+      if (saved) {
+        lastSaved = snapshot;
+        lastWritten = written;
+      }
       if (!disposed) ctx.status.textContent = saved ? `Сохранено в ${tab.file}` : `Не удалось сохранить ${tab.file}, повторю при следующей правке`;
     });
     await saving;
@@ -94,13 +113,38 @@ export const renderSchema = async (tab, ready, ctx) => {
     initialData: { elements: scene.elements, files: scene.files, appState: { viewBackgroundColor: LIGHT_CANVAS }, scrollToContent: true },
     langCode: "ru-RU",
     theme: ctx.theme(),
-    excalidrawAPI: (api) => setTimeout(() => {
-      api.scrollToContent(undefined, { fitToContent: true });
+    excalidrawAPI: (instance) => setTimeout(() => {
+      api = instance;
+      instance.scrollToContent(undefined, { fitToContent: true });
       ready();
     }, 0),
     onChange,
   }));
+  const reloadFromDisk = async () => {
+    const text = await fetchText(tab.file);
+    if (text === null || text === lastWritten || !api || disposed) return;
+    if (pending) {
+      ctx.status.textContent = `${tab.file} изменён на диске, но на холсте есть несохранённые правки: они запишутся поверх`;
+      return;
+    }
+    let fresh;
+    try {
+      fresh = JSON.parse(text);
+    } catch {
+      ctx.status.textContent = `${tab.file} на диске не читается как схема, на холсте прежняя версия`;
+      return;
+    }
+    if (fresh.files) api.addFiles(Object.values(fresh.files));
+    // NEVER держит подмену вне истории: иначе Ctrl+Z вернул бы старую сцену и сохранил её поверх файла
+    api.updateScene({ elements: restoreElements(fresh.elements ?? [], null), captureUpdate: CaptureUpdateAction.NEVER });
+    lastSaved = JSON.stringify(api.getSceneElementsIncludingDeleted());
+    ctx.status.textContent = `Схема обновлена из ${tab.file}`;
+  };
+  const stopWatching = watch((paths) => {
+    if (paths.has(tab.file)) saving.then(reloadFromDisk);
+  });
   return () => {
+    stopWatching();
     flush();
     disposed = true;
     closeDrawer();

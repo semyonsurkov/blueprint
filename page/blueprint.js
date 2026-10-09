@@ -1,9 +1,11 @@
 import { coversPath, normalizeDir, renderAdrTab, renderDocsTab } from "./docs.js";
+import { watch } from "./live.js";
 import { decodeHref, fetchText, fileUrl, renderDocs } from "./markdown.js";
 
 const THEME_KEY = "blueprint_theme";
 const SHELL_KEY = "blueprint_shell";
 const CONFIG_PATH = "blueprint/blueprint.json";
+const PAGE_DIR = "blueprint/";
 const view = document.getElementById("view");
 const status = document.getElementById("status");
 const themeToggle = document.getElementById("theme_toggle");
@@ -100,15 +102,32 @@ const renderFrame = (tab, ready) => {
   return () => {};
 };
 
+const docPath = (item) => (typeof item === "string" ? item : item.path);
+
+const renderStack = async (tab) => {
+  const stack = document.createElement("div");
+  stack.className = "doc_stack";
+  await renderDocs(tab.docs ?? [], stack, ctx);
+  return stack;
+};
+
 const renderMarkdownTab = async (tab, ready) => {
-  const documents = document.createElement("div");
-  documents.className = "doc_stack";
-  await renderDocs(tab.docs ?? [], documents, ctx);
-  if (ready.alive()) {
-    view.append(documents);
-    ready();
-  }
-  return () => {};
+  let stack = await renderStack(tab);
+  if (!ready.alive()) return () => {};
+  view.append(stack);
+  ready();
+  const shown = new Set((tab.docs ?? []).map(docPath));
+  return watch(async (paths) => {
+    if (![...paths].some((path) => shown.has(path))) return;
+    const next = await renderStack(tab).catch(() => null);
+    if (!next || !ready.alive()) return;
+    const opened = [...stack.querySelectorAll(":scope > details")].map((section) => section.open);
+    next.querySelectorAll(":scope > details").forEach((section, index) => { section.open = opened[index] ?? section.open; });
+    const scroll = view.scrollTop;
+    stack.replaceWith(next);
+    stack = next;
+    view.scrollTop = scroll;
+  });
 };
 
 const renderSchemaTab = async (...args) => (await import("./schema.js")).renderSchema(...args);
@@ -194,6 +213,11 @@ const loadConfig = async () => {
   }
   return parsed;
 };
+
+watch((paths) => {
+  const pageChanged = [...paths].some((path) => path === CONFIG_PATH || (path.startsWith(PAGE_DIR) && !path.endsWith(".css")));
+  if (pageChanged) location.reload();
+});
 
 try {
   config = await loadConfig();

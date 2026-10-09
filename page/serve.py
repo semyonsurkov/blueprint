@@ -3,6 +3,9 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
+import time
+from collections import deque
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -18,6 +21,11 @@ LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "[::1]")
 FEEDBACK_NAME = "FEEDBACK.md"
 MAX_BODY_BYTES = 20 * 1024 * 1024
 PENDING_CONNECTIONS = 256
+PAGE_DIR = Path(__file__).resolve().parent
+POLL_SECONDS = 0.3
+HEARTBEAT_SECONDS = 15
+KEPT_CHANGES = 64
+EVERYTHING = "*"
 
 
 def read_config() -> dict:
@@ -61,6 +69,95 @@ def markdown_files(folder: str, exclude: set[str]) -> list[str]:
             if name.endswith(".md") and not hidden(name):
                 files.append((Path(folder_path) / name).relative_to(PROJECT_ROOT).as_posix())
     return sorted(files)
+
+
+def tab_paths(tab: dict) -> list[str]:
+    docs = [item if isinstance(item, str) else item.get("path", "") for item in tab.get("docs", [])]
+    return [path for path in [tab.get("file", ""), *docs] if path]
+
+
+def folder_files(folder: Path) -> list[Path]:
+    files = []
+    for folder_path, folders, names in os.walk(folder):
+        folders[:] = [name for name in folders if not skipped(name)]
+        files += [Path(folder_path) / name for name in names if not hidden(name)]
+    return files
+
+
+def watched_files() -> list[Path]:
+    files = [CONFIG_FILE, *(path for path in PAGE_DIR.iterdir() if path.is_file() and not hidden(path.name))]
+    try:
+        config = read_config()
+    except (OSError, ValueError):
+        return files
+    for tab in config.get("tabs", []):
+        files += [PROJECT_ROOT / path for path in tab_paths(tab)]
+        if tab.get("type") == "frame" and "src" in tab:
+            folder = (PROJECT_ROOT / tab["src"]).parent.resolve()
+            if PROJECT_ROOT in folder.parents:
+                files += folder_files(folder)
+    for folder, exclude in listed_folders(config).items():
+        files += [PROJECT_ROOT / path for path in markdown_files(folder, exclude)]
+    return files
+
+
+def snapshot() -> dict[str, tuple[int, int]]:
+    state = {}
+    for path in watched_files():
+        try:
+            info = path.stat()
+            relative = path.resolve().relative_to(PROJECT_ROOT).as_posix()
+        except (OSError, ValueError):
+            continue
+        state[relative] = (info.st_mtime_ns, info.st_size)
+    return state
+
+
+# В стандартной библиотеке нет событий файловой системы, поэтому файлы из конфига опрашиваются,
+# и только пока хоть одна страница слушает /api/events.
+class Watcher:
+    def __init__(self):
+        self.condition = threading.Condition()
+        self.version = 0
+        self.changes = deque(maxlen=KEPT_CHANGES)
+        self.listeners = 0
+
+    def run(self):
+        previous = None
+        while True:
+            time.sleep(POLL_SECONDS)
+            if not self.listeners:
+                previous = None
+                continue
+            current = snapshot()
+            if previous is not None:
+                changed = sorted(path for path in previous.keys() | current.keys() if previous.get(path) != current.get(path))
+                if changed:
+                    with self.condition:
+                        self.version += 1
+                        self.changes.append((self.version, changed))
+                        self.condition.notify_all()
+            previous = current
+
+    def subscribe(self) -> int:
+        with self.condition:
+            self.listeners += 1
+            return self.version
+
+    def unsubscribe(self):
+        with self.condition:
+            self.listeners -= 1
+
+    def wait(self, since: int) -> tuple[int, list[str]]:
+        with self.condition:
+            self.condition.wait_for(lambda: self.version > since, timeout=HEARTBEAT_SECONDS)
+            fresh = [paths for version, paths in self.changes if version > since]
+            missed = self.changes and self.changes[0][0] > since + 1
+            paths = sorted({path for group in fresh for path in group} | ({EVERYTHING} if missed else set()))
+            return self.version, paths
+
+
+WATCHER = Watcher()
 
 
 def write_atomically(target: Path, body: bytes) -> None:
@@ -122,10 +219,34 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Location", PAGE_URL)
             self.end_headers()
             return
+        if path == "/api/events":
+            self._send_events()
+            return
         if path == "/api/tree":
             self._send_tree(parse_qs(urlparse(self.path).query).get("dir", [""])[0])
             return
         super().do_GET()
+
+    def _send_events(self):
+        if not self._from_this_server():
+            self._send_json(403, b'{"error":"foreign origin"}')
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.end_headers()
+        version = WATCHER.subscribe()
+        try:
+            self.wfile.write(b"retry: 1000\n\n")
+            self.wfile.flush()
+            while True:
+                version, paths = WATCHER.wait(version)
+                message = f"data: {json.dumps({'paths': paths}, ensure_ascii=False)}\n\n" if paths else ": ping\n\n"
+                self.wfile.write(message.encode())
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            WATCHER.unsubscribe()
 
     def _send_tree(self, folder: str):
         folders = listed_folders(read_config())
@@ -188,5 +309,6 @@ if __name__ == "__main__":
         server = Server((HOST, port), handler)
     except OSError as error:
         sys.exit(f"blueprint: порт {port} недоступен ({error.strerror}); задай другой в blueprint/blueprint.json")
+    threading.Thread(target=WATCHER.run, daemon=True).start()
     print(f"blueprint: http://localhost:{port}", flush=True)
     server.serve_forever()

@@ -1,5 +1,8 @@
+import { pathOf, watch } from "./live.js";
+
 const ICONS = "https://esm.sh/lucide-static@1.51.0/icons";
 const iconCache = new Map();
+let rendered = null;
 
 const loadSite = async () => {
   try {
@@ -38,7 +41,8 @@ const loadIcon = (name) => {
   return iconCache.get(name);
 };
 
-const placeIcons = () => Promise.all([...document.querySelectorAll("[data-icon]")].map(async (node) => {
+const placeIcons = () => Promise.all([...document.querySelectorAll("[data-icon]:not([data-icon-placed])")].map(async (node) => {
+  node.dataset.iconPlaced = "";
   const svg = await loadIcon(node.dataset.icon);
   if (svg) node.insertAdjacentHTML("afterbegin", svg.replace(/<!--.*?-->/s, ""));
   else node.dataset.iconMissing = "";
@@ -52,10 +56,26 @@ const addBackLink = () => {
   document.body.append(back);
 };
 
-export const renderScreens = async (blocks = {}) => {
+const render = async (blocks) => {
   await fillBlocks(blocks);
   expandRepeats();
   await placeIcons();
+};
+
+export const rerenderScreens = () => rendered?.() ?? Promise.resolve();
+
+const reloadOnChange = () => {
+  const own = pathOf(location.href);
+  const folder = own.slice(0, own.lastIndexOf("/") + 1);
+  watch((paths) => {
+    if ([own, `${folder}wire.js`, `${folder}screens.json`].some((path) => paths.has(path))) location.reload();
+  });
+};
+
+export const renderScreens = async (blocks = {}) => {
+  rendered = () => render(blocks);
+  await render(blocks);
+  if (!window.WIRE_ANNOTATE) reloadOnChange();
   const annotate = new URLSearchParams(location.search).has("annotate");
   if (window.WIRE_ANNOTATE || annotate || window.top === window) {
     await import("./feedback.js");

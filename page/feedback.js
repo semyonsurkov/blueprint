@@ -1,4 +1,5 @@
 import { icon } from "./icons.js";
+import { watch } from "./live.js";
 
 const FOLDER = decodeURIComponent(location.pathname).replace(/^\/|\/?[^/]*$/g, "");
 const FILE = FOLDER ? `${FOLDER}/FEEDBACK.md` : "FEEDBACK.md";
@@ -152,6 +153,9 @@ const flash = (element) => {
   setTimeout(() => element.classList.remove("fb_flash"), 1600);
 };
 
+const WHOLE_PIN_OFFSET = 16;
+const WHOLE_PIN_STEP = 28;
+
 const renderPins = () => {
   for (const layer of document.querySelectorAll(".fb_layer")) layer.remove();
   for (const [screen, root] of screenRoots()) {
@@ -161,19 +165,21 @@ const renderPins = () => {
     root.append(layer);
     const rootBox = root.getBoundingClientRect();
     const scale = rootBox.width / root.offsetWidth || 1;
+    let wholeIndex = 0;
     for (const note of notes.filter((item) => item.screen === screen)) {
       const element = resolve(root, note.selector);
       if (!element) continue;
       const box = element.getBoundingClientRect();
       const whole = element === root;
+      const wholeX = WHOLE_PIN_OFFSET + (whole ? wholeIndex++ : 0) * WHOLE_PIN_STEP;
       const pin = document.createElement("div");
       pin.className = "fb_pin";
       themed(pin);
       pin.textContent = note.id;
       pin.title = note.text;
       if (note.done) pin.dataset.done = "";
-      pin.style.setProperty("--pin_x", `${whole ? 16 : (box.right - rootBox.left) / scale}px`);
-      pin.style.setProperty("--pin_y", `${whole ? 16 : (box.top - rootBox.top) / scale}px`);
+      pin.style.setProperty("--pin_x", `${whole ? wholeX : (box.right - rootBox.left) / scale}px`);
+      pin.style.setProperty("--pin_y", `${whole ? WHOLE_PIN_OFFSET : (box.top - rootBox.top) / scale}px`);
       pin.addEventListener("click", (event) => {
         event.stopPropagation();
         flash(element);
@@ -434,6 +440,16 @@ addEventListener("keydown", (event) => {
   }
 });
 addEventListener("resize", renderPins);
+addEventListener("blueprint:screens", renderPins);
+
+watch(async (paths) => {
+  if (!paths.has(FILE)) return;
+  const text = await readFeedback().catch(() => null);
+  if (text === null) return;
+  notes.splice(0, notes.length, ...parse(text));
+  if (panel.querySelector(".fb_edit")) renderPins();
+  else render();
+});
 
 for (const href of ["/blueprint/ui.css", "/blueprint/feedback.css"]) {
   if (!document.querySelector(`link[href="${href}"]`)) {

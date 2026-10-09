@@ -50,3 +50,21 @@ html::-webkit-scrollbar { display: none; }
 .board_error { position: fixed; inset: var(--spacing_x8) var(--spacing_x2) auto; max-width: 560px; margin: 0 auto; padding: var(--spacing_x3); border: var(--border); border-radius: var(--radius_lg); background: var(--surface_raised); color: var(--text); font: var(--font_size_body) / var(--line_height_text) var(--font_sans); }
 .board_error strong { display: block; margin-bottom: var(--spacing_x1); }
 .board_error p { margin: 0; color: var(--text_secondary); }
+
+.live_error {
+  position: fixed;
+  top: var(--spacing_x2);
+  left: 50%;
+  z-index: 1100;
+  max-width: min(640px, calc(100% - var(--spacing_x4)));
+  padding: var(--spacing_x1) var(--spacing_x1_5);
+  border: 1px solid var(--danger_text);
+  border-radius: var(--radius_md);
+  background: var(--surface_raised);
+  color: var(--danger_text);
+  font: var(--font_size_body) / var(--line_height_control) var(--font_sans);
+  box-shadow: var(--shadow_sm);
+  transform: translateX(-50%);
+}
+
+.live_error[hidden] { display: none; }
