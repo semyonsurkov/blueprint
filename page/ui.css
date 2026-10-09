@@ -18,6 +18,10 @@
   --blue_70: #7aa2f0;
   --red_55: #d14343;
   --red_70: #e57373;
+  --green_40: #1f7a4d;
+  --green_70: #6fcf97;
+  --amber_40: #9a6100;
+  --amber_70: #f2c14e;
   --alpha_black_6: rgba(0, 0, 0, 0.06);
   --alpha_black_16: rgba(0, 0, 0, 0.16);
   --alpha_black_40: rgba(0, 0, 0, 0.4);
@@ -79,6 +83,10 @@
   --shadow_lg: 0 2px 6px var(--alpha_black_6), 0 16px 40px var(--alpha_black_16);
   --opacity_disabled: 0.5;
   --danger_text: var(--red_55);
+  --success_text: var(--green_40);
+  --success_fill: rgba(31, 122, 77, 0.1);
+  --warning_text: var(--amber_40);
+  --warning_fill: rgba(154, 97, 0, 0.1);
 }
 
 :root[data-theme="dark"],
@@ -99,6 +107,10 @@
   --shadow_sm: 0 1px 2px var(--alpha_black_40);
   --shadow_lg: 0 16px 40px var(--alpha_black_40);
   --danger_text: var(--red_70);
+  --success_text: var(--green_70);
+  --success_fill: rgba(111, 207, 151, 0.12);
+  --warning_text: var(--amber_70);
+  --warning_fill: rgba(242, 193, 78, 0.12);
 }
 
 .ui_button,

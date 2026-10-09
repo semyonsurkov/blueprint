@@ -1,300 +1,20 @@
-import { marked } from "marked";
-import { gfmHeadingId } from "marked-gfm-heading-id";
-import DOMPurify from "dompurify";
+import { coversPath, normalizeDir, renderAdrTab, renderDocsTab } from "./docs.js";
+import { decodeHref, fetchText, fileUrl, renderDocs } from "./markdown.js";
 
-const HEADING_ID_PREFIX = "user-content-";
-const FORBIDDEN_TAGS = ["style", "form", "button", "textarea", "select", "option"];
-
-marked.use(gfmHeadingId({ prefix: HEADING_ID_PREFIX }));
-DOMPurify.addHook("uponSanitizeElement", (node, data) => {
-  if (data.tagName === "input" && node.getAttribute("type") !== "checkbox") node.remove();
-});
-
-const SAVE_DELAY_MS = 800;
 const THEME_KEY = "blueprint_theme";
+const SHELL_KEY = "blueprint_shell";
+const CONFIG_PATH = "blueprint/blueprint.json";
 const view = document.getElementById("view");
 const status = document.getElementById("status");
+const themeToggle = document.getElementById("theme_toggle");
+const TEXT_TABS = new Set(["markdown", "docs", "adr"]);
 let unmount = () => {};
 let generation = 0;
 let activeTab = null;
-let mermaidCounter = 0;
+let pendingAnchor = null;
+let config = null;
 
-const currentTheme = () => document.documentElement.dataset.theme;
-
-const themeToggle = document.getElementById("theme_toggle");
-
-const fileUrl = (path) => `/${path.split("/").map(encodeURIComponent).join("/")}`;
-
-const fetchText = async (path) => {
-  const response = await fetch(fileUrl(path));
-  return response.ok ? response.text() : null;
-};
-
-const resolvePath = (from, href) => {
-  const parts = from.split("/").slice(0, -1);
-  for (const part of href.split("/")) {
-    if (part === "..") parts.pop();
-    else if (part && part !== ".") parts.push(part);
-  }
-  return parts.join("/");
-};
-
-const MISSING_FILE = "Файл не найден";
-
-const markdown = (text, path) => {
-  const body = document.createElement("div");
-  body.className = "doc_body";
-  if (text === null) {
-    body.textContent = MISSING_FILE;
-    return body;
-  }
-  body.innerHTML = DOMPurify.sanitize(marked.parse(text), { FORBID_TAGS: FORBIDDEN_TAGS });
-  for (const image of body.querySelectorAll("img[src]")) {
-    const src = image.getAttribute("src");
-    if (!/^([a-z]+:|\/|#)/i.test(src)) image.src = fileUrl(resolvePath(path, decodeHref(src)));
-  }
-  return body;
-};
-
-const sourceLabel = (tag, path) => {
-  const label = document.createElement(tag);
-  label.className = "source";
-  label.textContent = path;
-  return label;
-};
-
-const decodeHref = (value) => {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-};
-
-const scrollToAnchor = (container, anchor) => {
-  const target = container.querySelector(`[id="${CSS.escape(HEADING_ID_PREFIX + anchor)}"]`)
-    ?? container.querySelector(`[id="${CSS.escape(anchor)}"]`);
-  target?.scrollIntoView({ block: "start" });
-};
-
-const keepAnchorsInside = (container) => {
-  container.addEventListener("click", (event) => {
-    const link = event.target.closest('a[href^="#"]');
-    if (!link) return;
-    event.preventDefault();
-    scrollToAnchor(container, decodeHref(link.getAttribute("href").slice(1)));
-  });
-};
-
-const renderDocs = async (docs, container) => {
-  for (const item of docs) {
-    const { path, collapsed } = typeof item === "string" ? { path: item } : item;
-    const foldable = collapsed !== undefined;
-    const section = document.createElement(foldable ? "details" : "section");
-    section.className = "doc";
-    section.open = collapsed === false;
-    section.append(sourceLabel(foldable ? "summary" : "div", path), markdown(await fetchText(path), path));
-    keepAnchorsInside(section);
-    container.append(section);
-  }
-};
-
-const renderMermaid = async (container) => {
-  const blocks = container.querySelectorAll("pre > code.language-mermaid");
-  if (blocks.length === 0) return;
-  const { default: mermaid } = await import("mermaid");
-  mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: currentTheme() === "dark" ? "dark" : "default" });
-  for (const code of blocks) {
-    const figure = document.createElement("div");
-    figure.className = "diagram";
-    try {
-      const { svg } = await mermaid.render(`mermaid_${++mermaidCounter}`, code.textContent);
-      figure.innerHTML = svg;
-      code.parentElement.replaceWith(figure);
-    } catch {
-      code.parentElement.classList.add("diagram_error");
-    }
-  }
-};
-
-const showDocument = async (article, path, onNavigate) => {
-  const text = await fetchText(path);
-  article.replaceChildren(sourceLabel("div", path), markdown(text, path));
-  for (const link of article.querySelectorAll("a[href]")) {
-    const href = link.getAttribute("href");
-    if (/^([a-z]+:|#|\/)/i.test(href)) continue;
-    const [file, anchor] = href.split("#");
-    if (!file.endsWith(".md")) continue;
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      onNavigate(resolvePath(path, decodeHref(file)), anchor && decodeHref(anchor));
-    });
-  }
-  await renderMermaid(article);
-};
-
-const fetchTree = async (dir) => {
-  const response = await fetch(`/api/tree?dir=${encodeURIComponent(dir)}`);
-  return response.ok ? response.json() : [];
-};
-
-const buildTree = (files, dir) => {
-  const root = { folders: new Map(), files: [] };
-  for (const path of files) {
-    const parts = path.slice(dir.length + 1).split("/");
-    let node = root;
-    for (const folder of parts.slice(0, -1)) {
-      if (!node.folders.has(folder)) node.folders.set(folder, { folders: new Map(), files: [] });
-      node = node.folders.get(folder);
-    }
-    node.files.push({ name: parts.at(-1), path });
-  }
-  return root;
-};
-
-const openFolders = (tabId) => {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(`blueprint_tree_${tabId}`) ?? "[]"));
-  } catch {
-    return new Set();
-  }
-};
-
-const rememberFolders = (tabId, nav) => {
-  const open = [...nav.querySelectorAll("details[open]")].map((folder) => folder.dataset.folder);
-  try { localStorage.setItem(`blueprint_tree_${tabId}`, JSON.stringify(open)); } catch {}
-};
-
-const treeNodes = (node, open, prefix = "") => {
-  const list = document.createElement("ul");
-  for (const [name, child] of node.folders) {
-    const item = document.createElement("li");
-    const folder = document.createElement("details");
-    const path = `${prefix}${name}/`;
-    folder.dataset.folder = path;
-    folder.open = open.has(path);
-    const summary = document.createElement("summary");
-    summary.textContent = name;
-    folder.append(summary);
-    folder.append(treeNodes(child, open, path));
-    item.append(folder);
-    list.append(item);
-  }
-  for (const file of node.files) {
-    const item = document.createElement("li");
-    const link = document.createElement("a");
-    link.href = "#";
-    link.dataset.path = file.path;
-    link.textContent = file.name.replace(/\.md$/, "");
-    item.append(link);
-    list.append(item);
-  }
-  return list;
-};
-
-const adrEntry = async (path) => {
-  const text = (await fetchText(path)) ?? "";
-  const title = text.match(/^#\s+(.+)$/m)?.[1] ?? path.split("/").at(-1);
-  const status = text.match(/^\s*(?:[-*]\s+)?(?:\*\*)?(?:Статус|Status)(?:\*\*)?\s*[:：]\s*(?:\*\*)?\s*(.+?)\s*$/im)?.[1]
-    ?? text.match(/^status:\s*(.+)$/im)?.[1] ?? "";
-  return { path, title, status: status.split(/[;.]/)[0] };
-};
-
-const adrNodes = (entries) => {
-  const list = document.createElement("ul");
-  for (const entry of entries) {
-    const item = document.createElement("li");
-    const link = document.createElement("a");
-    link.href = "#";
-    link.dataset.path = entry.path;
-    link.innerHTML = `<span class="adr_title"></span><span class="adr_status"></span>`;
-    link.querySelector(".adr_title").textContent = entry.title;
-    link.querySelector(".adr_status").textContent = entry.status;
-    item.append(link);
-    list.append(item);
-  }
-  return list;
-};
-
-const renderLibrary = (buildNav) => async (tab, ready, initialPath) => {
-  const layout = document.createElement("div");
-  layout.className = "library";
-  const nav = document.createElement("nav");
-  nav.className = "tree";
-  const article = document.createElement("article");
-  article.className = "doc";
-  layout.append(nav, article);
-  view.append(layout);
-  const files = await fetchTree(tab.dir);
-  const { node, fallback } = await buildNav(tab, files);
-  nav.append(node);
-  let shown = 0;
-  keepAnchorsInside(article);
-  const show = async (path, anchor) => {
-    const mine = ++shown;
-    for (const link of nav.querySelectorAll("a[data-path]")) {
-      if (link.dataset.path === path) {
-        link.setAttribute("aria-current", "page");
-        for (let folder = link.closest("details"); folder; folder = folder.parentElement.closest("details")) folder.open = true;
-      } else link.removeAttribute("aria-current");
-    }
-    rememberFolders(tab.id, nav);
-    const target = document.createElement("article");
-    await showDocument(target, path, (next, nextAnchor) => {
-      history.replaceState(null, "", tabHash(tab.id, next));
-      show(next, nextAnchor);
-    });
-    if (mine !== shown) return;
-    article.replaceChildren(...target.childNodes);
-    if (anchor) scrollToAnchor(article, anchor);
-    else article.scrollTop = 0;
-  };
-  nav.addEventListener("toggle", () => rememberFolders(tab.id, nav), true);
-  nav.addEventListener("click", (event) => {
-    const link = event.target.closest("a[data-path]");
-    if (!link) return;
-    event.preventDefault();
-    history.replaceState(null, "", tabHash(tab.id, link.dataset.path));
-    show(link.dataset.path);
-  });
-  const first = initialPath && files.includes(initialPath) ? initialPath : fallback;
-  if (first) await show(first);
-  else article.textContent = "В папке нет markdown-файлов";
-  ready();
-  activeTab = { id: tab.id, show };
-  return () => { activeTab = null; };
-};
-
-const renderDocsTab = renderLibrary(async (tab, files) => {
-  const readme = files.find((path) => path === `${tab.dir}/README.md`);
-  return { node: treeNodes(buildTree(files, tab.dir), openFolders(tab.id)), fallback: readme ?? files[0] };
-});
-
-const renderAdrTab = renderLibrary(async (tab, files) => {
-  const decisions = files.filter((path) => !path.endsWith("/README.md"));
-  const entries = await Promise.all(decisions.map(adrEntry));
-  return { node: adrNodes(entries), fallback: decisions[0] };
-});
-
-const EXCALIDRAW_CSS = "https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/index.css";
-
-const loadExcalidraw = () => {
-  if (!document.querySelector(`link[href="${EXCALIDRAW_CSS}"]`)) {
-    document.head.insertAdjacentHTML("afterbegin", `<link rel="stylesheet" href="${EXCALIDRAW_CSS}">`);
-  }
-  return Promise.all([import("react"), import("react-dom/client"), import("@excalidraw/excalidraw")]);
-};
-
-const loadScene = async (tab) => {
-  const saved = await fetchText(tab.file);
-  return saved ? JSON.parse(saved) : { elements: [] };
-};
-
-const save = async (serializeAsJSON, tab, elements, appState, files) => {
-  const body = serializeAsJSON(elements, appState, files, "local");
-  const response = await fetch(`/api/save?path=${encodeURIComponent(tab.file)}`, { method: "POST", body });
-  status.textContent = response.ok ? `Сохранено в ${tab.file}` : "Не удалось сохранить";
-};
+const theme = () => document.documentElement.dataset.theme;
 
 const skeleton = (kind) => {
   const node = document.createElement("div");
@@ -305,64 +25,66 @@ const skeleton = (kind) => {
   return node;
 };
 
-const docsButton = (tab) => {
+const showError = (title, details) => {
+  const box = document.createElement("div");
+  box.className = "error_page";
+  box.append(
+    Object.assign(document.createElement("strong"), { textContent: title }),
+    Object.assign(document.createElement("p"), { textContent: details }),
+  );
+  view.replaceChildren(box);
+};
+
+const headerButton = (label) => {
   const button = document.createElement("button");
   button.id = "docs_toggle";
   button.className = "ui_button";
-  button.textContent = tab.docs_label ?? "Документы";
+  button.textContent = label;
   const slot = document.getElementById("docs_slot");
   if (slot) slot.replaceWith(button);
   else themeToggle.after(button);
   return button;
 };
 
-const renderExcalidraw = async (tab, ready) => {
-  const canvas = document.createElement("div");
-  canvas.className = "canvas";
-  view.append(canvas);
-  const toggle = tab.docs?.length ? docsButton(tab) : null;
-  const [[react, dom, { Excalidraw, serializeAsJSON }], scene] = await Promise.all([loadExcalidraw(), loadScene(tab)]);
-  const React = react.default ?? react;
-  let timer;
-  let lastSaved = JSON.stringify(scene.elements);
-  const onChange = (elements, appState, files) => {
-    const snapshot = JSON.stringify(elements);
-    if (snapshot === lastSaved) return;
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      lastSaved = snapshot;
-      save(serializeAsJSON, tab, elements, appState, files);
-    }, SAVE_DELAY_MS);
-  };
-  const root = dom.createRoot(canvas);
-  root.render(React.createElement(Excalidraw, {
-    initialData: { elements: scene.elements, files: scene.files, appState: { viewBackgroundColor: "#ffffff" }, scrollToContent: true },
-    langCode: "ru-RU",
-    theme: currentTheme(),
-    excalidrawAPI: (api) => setTimeout(() => {
-      api.scrollToContent(undefined, { fitToContent: true });
-      ready();
-    }, 0),
-    onChange,
-  }));
-  if (!toggle) return () => root.unmount();
-  const drawer = document.createElement("aside");
-  drawer.className = "drawer";
-  drawer.hidden = true;
-  drawer.append(skeleton("text"));
-  view.append(drawer);
-  renderDocs(tab.docs, drawer).then(() => drawer.querySelector(".sk_page")?.remove());
-  const setOpen = (open) => {
-    drawer.hidden = !open;
-    toggle.setAttribute("aria-pressed", String(open));
-  };
-  toggle.addEventListener("click", () => setOpen(drawer.hidden));
-  const onKey = (event) => { if (event.key === "Escape") setOpen(false); };
-  addEventListener("keydown", onKey);
-  return () => {
-    removeEventListener("keydown", onKey);
-    root.unmount();
-  };
+const tabHash = (id, path) => `#${encodeURIComponent(id)}/${path.split("/").map(encodeURIComponent).join("/")}`;
+
+const parseHash = () => {
+  const [id, ...rest] = location.hash.slice(1).split("/");
+  return { id: decodeHref(id), path: rest.map(decodeHref).join("/") };
+};
+
+const openDocument = (path, anchor) => {
+  if (activeTab?.has(path)) {
+    history.replaceState(null, "", tabHash(activeTab.id, path));
+    activeTab.show(path, anchor);
+    return;
+  }
+  const owner = config.tabs
+    .filter((tab) => coversPath(tab, path))
+    .sort((left, right) => normalizeDir(right.dir).length - normalizeDir(left.dir).length)[0];
+  if (!owner) {
+    window.open(fileUrl(path), "_blank", "noopener");
+    return;
+  }
+  pendingAnchor = anchor ?? null;
+  location.hash = tabHash(owner.id, path);
+};
+
+const ctx = {
+  view,
+  status,
+  theme,
+  skeleton,
+  headerButton,
+  openDocument,
+  tabHash,
+  setActiveTab: (tab) => { activeTab = tab; },
+  releaseActiveTab: (tab) => { if (activeTab === tab) activeTab = null; },
+  takeAnchor: () => {
+    const anchor = pendingAnchor;
+    pendingAnchor = null;
+    return anchor;
+  },
 };
 
 const renderFrame = (tab, ready) => {
@@ -370,78 +92,133 @@ const renderFrame = (tab, ready) => {
   frame.className = "frame";
   frame.allow = "clipboard-write";
   frame.addEventListener("load", () => {
-    try { frame.contentDocument.documentElement.dataset.theme = currentTheme(); } catch {}
+    try { frame.contentDocument.documentElement.dataset.theme = theme(); } catch {}
     ready();
   });
-  frame.src = `/${tab.src}`;
+  frame.src = fileUrl(tab.src);
   view.append(frame);
   return () => {};
 };
 
-const renderMarkdown = async (tab, ready) => {
-  await renderDocs(tab.docs, view);
-  ready();
+const renderMarkdownTab = async (tab, ready) => {
+  const documents = document.createElement("div");
+  documents.className = "doc_stack";
+  await renderDocs(tab.docs ?? [], documents, ctx);
+  if (ready.alive()) {
+    view.append(documents);
+    ready();
+  }
   return () => {};
 };
 
-const tabHash = (id, path) => `#${encodeURIComponent(id)}/${path.split("/").map(encodeURIComponent).join("/")}`;
+const renderSchemaTab = async (...args) => (await import("./schema.js")).renderSchema(...args);
 
-const renderers = { excalidraw: renderExcalidraw, frame: renderFrame, markdown: renderMarkdown, docs: renderDocsTab, adr: renderAdrTab };
-const textTabs = new Set(["markdown", "docs", "adr"]);
-
-const parseHash = () => {
-  const [id, ...rest] = location.hash.slice(1).split("/");
-  return { id: decodeHref(id), path: rest.map(decodeHref).join("/") };
+const renderers = {
+  excalidraw: renderSchemaTab,
+  frame: renderFrame,
+  markdown: renderMarkdownTab,
+  docs: renderDocsTab,
+  adr: renderAdrTab,
 };
 
-const open = async (config, id, path) => {
-  const tab = config.tabs.find((item) => item.id === id) ?? config.tabs[0];
-  unmount();
-  document.getElementById("docs_toggle")?.remove();
-  if (!tab.docs?.length || tab.type !== "excalidraw") document.getElementById("docs_slot")?.remove();
-  const mine = ++generation;
-  const ready = () => { if (mine === generation) view.querySelector(".sk_page")?.remove(); };
-  view.replaceChildren(skeleton(textTabs.has(tab.type) ? "text" : "canvas"));
-  status.textContent = "";
+const markCurrent = (tab) => {
   for (const link of document.querySelectorAll("#tabs a")) {
     if (link.dataset.id === tab.id) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   }
-  const cleanup = await renderers[tab.type](tab, ready, path);
-  unmount = mine === generation ? cleanup : (cleanup(), unmount);
 };
 
-const config = JSON.parse(await fetchText("blueprint/blueprint.json"));
-document.title = config.title;
-document.getElementById("title").textContent = config.title;
-document.getElementById("tabs").replaceChildren(...config.tabs.map((tab) => {
-  const link = document.createElement("a");
-  link.href = `#${tab.id}`;
-  link.dataset.id = tab.id;
-  link.textContent = tab.title;
-  return link;
-}));
-try {
-  localStorage.setItem("blueprint_shell", JSON.stringify({
-    title: config.title,
-    tabs: config.tabs.map((tab) => ({
-      id: tab.id,
-      title: tab.title,
-      kind: tab.type,
-      docsLabel: tab.type === "excalidraw" && tab.docs?.length ? (tab.docs_label ?? "Документы") : null,
-    })),
+const open = async (id, path) => {
+  const tab = config.tabs.find((item) => item.id === id) ?? config.tabs[0];
+  unmount();
+  unmount = () => {};
+  document.getElementById("docs_toggle")?.remove();
+  if (!tab.docs?.length || tab.type !== "excalidraw") document.getElementById("docs_slot")?.remove();
+  const mine = ++generation;
+  const ready = () => { if (mine === generation) view.querySelector(".sk_page")?.remove(); };
+  ready.alive = () => mine === generation;
+  view.replaceChildren(skeleton(TEXT_TABS.has(tab.type) ? "text" : "canvas"));
+  status.textContent = "";
+  markCurrent(tab);
+  const render = renderers[tab.type];
+  if (!render) {
+    showError(`Неизвестный тип вкладки «${tab.type}»`, `Вкладка «${tab.title}» в ${CONFIG_PATH}: допустимые типы ${Object.keys(renderers).join(", ")}.`);
+    return;
+  }
+  try {
+    const cleanup = await render(tab, ready, ctx, path);
+    if (mine === generation) unmount = cleanup;
+    else cleanup();
+  } catch (error) {
+    if (mine === generation) showError(`Вкладка «${tab.title}» не открылась`, error.message || String(error));
+  }
+};
+
+const rememberShell = () => {
+  try {
+    localStorage.setItem(SHELL_KEY, JSON.stringify({
+      title: config.title,
+      tabs: config.tabs.map((tab) => ({
+        id: tab.id,
+        title: tab.title,
+        kind: tab.type,
+        docsLabel: tab.type === "excalidraw" && tab.docs?.length ? (tab.docs_label ?? "Документы") : null,
+      })),
+    }));
+  } catch {}
+};
+
+const drawShell = () => {
+  document.title = config.title;
+  document.getElementById("title").textContent = config.title;
+  document.getElementById("tabs").replaceChildren(...config.tabs.map((tab) => {
+    const link = document.createElement("a");
+    link.href = `#${encodeURIComponent(tab.id)}`;
+    link.dataset.id = tab.id;
+    link.textContent = tab.title;
+    return link;
   }));
-} catch {}
-addEventListener("hashchange", () => {
+};
+
+const loadConfig = async () => {
+  const text = await fetchText(CONFIG_PATH);
+  if (text === null) throw new Error(`Нет файла ${CONFIG_PATH}: запусти blueprint init в корне проекта`);
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${CONFIG_PATH} не читается как JSON: ${error.message}`);
+  }
+  if (!Array.isArray(parsed.tabs) || parsed.tabs.length === 0) {
+    throw new Error(`В ${CONFIG_PATH} нет ни одной вкладки: добавь их или пересобери конфиг через blueprint init --reconfigure`);
+  }
+  return parsed;
+};
+
+try {
+  config = await loadConfig();
+} catch (error) {
+  document.getElementById("docs_slot")?.remove();
+  document.getElementById("title").textContent = "Проект";
+  document.getElementById("tabs").replaceChildren();
+  showError("Страница проекта не загрузилась", error.message);
+}
+
+if (config) {
+  drawShell();
+  rememberShell();
+  addEventListener("hashchange", () => {
+    const { id, path } = parseHash();
+    if (activeTab && activeTab.id === id && path && activeTab.has(path)) activeTab.show(path, ctx.takeAnchor());
+    else open(id, path);
+  });
   const { id, path } = parseHash();
-  if (activeTab && activeTab.id === id && path) activeTab.show(path);
-  else open(config, id, path);
-});
-open(config, parseHash().id, parseHash().path);
+  open(id, path);
+}
 
 themeToggle.addEventListener("click", () => {
-  const next = currentTheme() === "dark" ? "light" : "dark";
+  const next = theme() === "dark" ? "light" : "dark";
   document.documentElement.dataset.theme = next;
   try { localStorage.setItem(THEME_KEY, next); } catch {}
-  open(config, parseHash().id, parseHash().path);
+  if (config) open(parseHash().id, parseHash().path);
 });

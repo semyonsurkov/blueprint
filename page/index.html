@@ -6,11 +6,7 @@
 <title>Проект</title>
 <link rel="stylesheet" href="./ui.css">
 <link rel="stylesheet" href="./blueprint.css">
-<script>
-let theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-try { theme = localStorage.getItem("blueprint_theme") || theme; } catch {}
-document.documentElement.dataset.theme = theme;
-</script>
+<script src="./theme.js"></script>
 <script>window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/";</script>
 <script type="importmap">
 {
