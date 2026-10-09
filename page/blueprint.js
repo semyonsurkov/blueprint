@@ -99,14 +99,29 @@ const buildTree = (files, dir) => {
   return root;
 };
 
-const treeNodes = (node) => {
+const openFolders = (tabId) => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(`blueprint_tree_${tabId}`) ?? "[]"));
+  } catch {
+    return new Set();
+  }
+};
+
+const rememberFolders = (tabId, nav) => {
+  const open = [...nav.querySelectorAll("details[open]")].map((folder) => folder.dataset.folder);
+  try { localStorage.setItem(`blueprint_tree_${tabId}`, JSON.stringify(open)); } catch {}
+};
+
+const treeNodes = (node, open, prefix = "") => {
   const list = document.createElement("ul");
   for (const [name, child] of node.folders) {
     const item = document.createElement("li");
     const folder = document.createElement("details");
-    folder.open = true;
+    const path = `${prefix}${name}/`;
+    folder.dataset.folder = path;
+    folder.open = open.has(path);
     folder.innerHTML = `<summary>${name}</summary>`;
-    folder.append(treeNodes(child));
+    folder.append(treeNodes(child, open, path));
     item.append(folder);
     list.append(item);
   }
@@ -160,9 +175,12 @@ const renderLibrary = (buildNav) => async (tab, ready, initialPath) => {
   nav.append(node);
   const show = async (path, anchor) => {
     for (const link of nav.querySelectorAll("a[data-path]")) {
-      if (link.dataset.path === path) link.setAttribute("aria-current", "page");
-      else link.removeAttribute("aria-current");
+      if (link.dataset.path === path) {
+        link.setAttribute("aria-current", "page");
+        for (let folder = link.closest("details"); folder; folder = folder.parentElement.closest("details")) folder.open = true;
+      } else link.removeAttribute("aria-current");
     }
+    rememberFolders(tab.id, nav);
     await showDocument(article, path, (next, nextAnchor) => {
       history.replaceState(null, "", `#${tab.id}/${next}`);
       show(next, nextAnchor);
@@ -170,6 +188,7 @@ const renderLibrary = (buildNav) => async (tab, ready, initialPath) => {
     if (anchor) article.querySelector(`[id="${CSS.escape(anchor)}"]`)?.scrollIntoView();
     else article.scrollTop = 0;
   };
+  nav.addEventListener("toggle", () => rememberFolders(tab.id, nav), true);
   nav.addEventListener("click", (event) => {
     const link = event.target.closest("a[data-path]");
     if (!link) return;
@@ -187,7 +206,7 @@ const renderLibrary = (buildNav) => async (tab, ready, initialPath) => {
 
 const renderDocsTab = renderLibrary(async (tab, files) => {
   const readme = files.find((path) => path === `${tab.dir}/README.md`);
-  return { node: treeNodes(buildTree(files, tab.dir)), fallback: readme ?? files[0] };
+  return { node: treeNodes(buildTree(files, tab.dir), openFolders(tab.id)), fallback: readme ?? files[0] };
 });
 
 const renderAdrTab = renderLibrary(async (tab, files) => {
