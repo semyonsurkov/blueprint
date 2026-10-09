@@ -1,7 +1,14 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Каркасы</title>
+<link rel="stylesheet" href="/blueprint/ui.css">
 <link rel="stylesheet" href="wire.css">
+<script>
+try {
+  document.documentElement.dataset.theme = window.parent.document.documentElement.dataset.theme
+    ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+} catch {}
+</script>
 <style>
 html {
   --board_bg: #e6e6e6;
@@ -16,9 +23,9 @@ html {
   --board_mute: #5c5c5c;
 }
 html[data-theme="dark"] {
-  --board_bg: #111111;
-  --board_item_bg: #161616;
-  --board_item_line: #333333;
+  --board_bg: #0e0e0e;
+  --board_item_bg: #141414;
+  --board_item_line: #2a2a2a;
   --board_caption: #9a9a9a;
   --board_title: #ececec;
   --board_panel: #161616;
@@ -38,10 +45,8 @@ html::-webkit-scrollbar { display: none; }
 .group { position: absolute; font-size: 64px; font-weight: 700; color: var(--board_title); white-space: nowrap; }
 .panning, .panning * { cursor: grab !important; user-select: none; }
 .dragging, .dragging * { cursor: grabbing !important; }
-.zoom { position: fixed; left: 16px; bottom: 16px; z-index: 1000; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--board_panel_line); border-radius: 10px; background: var(--board_panel); font: 13px system-ui; }
-.zoom button { min-width: 30px; height: 28px; border: 0; border-radius: 6px; background: none; color: var(--board_text); font: inherit; cursor: pointer; }
-.zoom button:hover { background: var(--board_hover); }
-.zoom output { min-width: 44px; text-align: center; color: var(--board_mute); }
+.zoom { position: fixed; left: var(--spacing_x2); bottom: var(--spacing_x2); z-index: 1000; }
+.zoom output { min-width: 44px; text-align: center; color: var(--text_secondary); font: var(--font_weight_medium) var(--font_size_control) / 1 var(--font_sans); }
 </style>
 <div id="space"><div id="board"></div></div>
 <script type="module">
@@ -120,8 +125,8 @@ const zoomTo = (next, clientX = innerWidth / 2, clientY = innerHeight / 2) => {
 };
 
 const zoom = document.createElement("div");
-zoom.className = "zoom";
-zoom.innerHTML = '<button type="button" data-step="0.8" aria-label="Уменьшить">−</button><output></output><button type="button" data-step="1.25" aria-label="Увеличить">+</button><button type="button" data-fit>По ширине</button>';
+zoom.className = "zoom ui_toolbar";
+zoom.innerHTML = '<button type="button" class="ui_icon_button" data-variant="ghost" data-step="0.8" aria-label="Уменьшить">−</button><output></output><button type="button" class="ui_icon_button" data-variant="ghost" data-step="1.25" aria-label="Увеличить">+</button><button type="button" class="ui_button" data-variant="ghost" data-fit>По ширине</button>';
 const zoomLabel = zoom.querySelector("output");
 zoomLabel.value = `${Math.round(scale * 100)}%`;
 zoom.addEventListener("click", (event) => {

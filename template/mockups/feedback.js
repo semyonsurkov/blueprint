@@ -59,13 +59,32 @@ const serialize = () => {
   return ["# Отзывы по макетам", "", "Открытые пункты `- [ ]` ждут правки, путь в обратных кавычках ведёт к элементу от `.screen` экрана.", "", ...blocks.flatMap((block) => [block, ""])].join("\n");
 };
 
+const NOTICE_MS = 4000;
+
+const readFeedback = () => fetch(`/${FILE}`, { cache: "no-store" })
+  .then((response) => (response.ok ? response.text() : ""))
+  .catch(() => "");
+
 const save = async () => {
-  await fetch(`/api/save?path=${encodeURIComponent(FILE)}`, { method: "POST", body: serialize() });
+  const response = await fetch(`/api/save?path=${encodeURIComponent(FILE)}`, { method: "POST", body: serialize() })
+    .catch(() => null);
+  if (!response?.ok) {
+    notes.length = 0;
+    parse(await readFeedback());
+    notice("Не удалось сохранить отзыв, показано то, что лежит в FEEDBACK.md");
+  }
   render();
 };
 
 const SCREEN = ":scope";
-const resolve = (root, selector) => (selector === SCREEN ? root : root.querySelector(selector));
+const resolve = (root, selector) => {
+  if (selector === SCREEN) return root;
+  try {
+    return root.querySelector(selector);
+  } catch {
+    return null;
+  }
+};
 const target = (note) => {
   const root = screenRoots().get(note.screen);
   return root ? resolve(root, note.selector) : null;
@@ -234,7 +253,18 @@ const captionScreen = (element) => {
 const modeHint = document.createElement("div");
 modeHint.className = "fb_mode_hint fb_ui";
 modeHint.hidden = true;
-modeHint.textContent = "Режим отзыва: щёлкните по элементу или названию экрана · Esc — выйти";
+const MODE_TEXT = "Щёлкните по элементу или названию экрана, Esc выход";
+modeHint.textContent = MODE_TEXT;
+let noticeTimer;
+const notice = (text) => {
+  clearTimeout(noticeTimer);
+  modeHint.textContent = text;
+  modeHint.hidden = false;
+  noticeTimer = setTimeout(() => {
+    modeHint.textContent = MODE_TEXT;
+    modeHint.hidden = !mode;
+  }, NOTICE_MS);
+};
 
 const toggleMode = (button) => {
   mode = !mode;
@@ -278,10 +308,9 @@ const bar = document.createElement("div");
 bar.className = "fb_bar fb_ui ui_toolbar";
 panel.classList.add("fb_ui");
 try {
-  if (window.parent !== window) {
-    if (window.frameElement?.dataset.themeMode !== "project") document.documentElement.dataset.framed = "";
-    uiTheme = window.parent.document.documentElement.dataset.theme ?? "light";
-  }
+  uiTheme = window.parent.document.documentElement.dataset.theme
+    ?? document.documentElement.dataset.theme
+    ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 } catch {}
 const modeButton = Object.assign(document.createElement("button"), { type: "button", className: "ui_button", innerHTML: "Оставить отзыв<span class=\"ui_kbd\">C</span>" });
 modeButton.dataset.variant = "ghost";
@@ -299,7 +328,7 @@ document.body.append(panel, bar, modeHint);
 
 const [manifest, feedback] = await Promise.all([
   fetch("screens.json").then((response) => response.json()).catch(() => ({ screens: [] })),
-  fetch(`/${FILE}`, { cache: "no-store" }).then((response) => (response.ok ? response.text() : "")).catch(() => ""),
+  readFeedback(),
 ]);
 for (const screen of manifest.screens ?? []) titles.set(screen.file, screen.title);
 parse(feedback);

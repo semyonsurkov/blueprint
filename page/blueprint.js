@@ -369,11 +369,8 @@ const renderFrame = (tab, ready) => {
   const frame = document.createElement("iframe");
   frame.className = "frame";
   frame.allow = "clipboard-write";
-  frame.dataset.themeMode = tab.theme === "project" ? "project" : "invert";
   frame.addEventListener("load", () => {
-    if (tab.theme === "project") {
-      try { frame.contentDocument.documentElement.dataset.theme = currentTheme(); } catch {}
-    }
+    try { frame.contentDocument.documentElement.dataset.theme = currentTheme(); } catch {}
     ready();
   });
   frame.src = `/${tab.src}`;
