@@ -1,0 +1,13 @@
+{
+  "packages": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@excalidraw/excalidraw": "0.18.1",
+    "marked": "18.0.14",
+    "marked-gfm-heading-id": "4.1.4",
+    "dompurify": "3.4.16",
+    "mermaid": "12.1.0",
+    "lucide-static": "1.51.0"
+  },
+  "together": [["react", "react-dom"]]
+}
