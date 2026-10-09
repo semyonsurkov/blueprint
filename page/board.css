@@ -1,0 +1,52 @@
+html {
+  --board_bg: #e6e6e6;
+  --board_item_bg: #ffffff;
+  --board_item_line: #bbbbbb;
+  --board_caption: #444444;
+  --board_title: #222222;
+  --board_panel: #ffffff;
+  --board_panel_line: #c9c9c9;
+  --board_hover: #f1f3f5;
+  --board_text: #1a1a1a;
+  --board_mute: #5c5c5c;
+}
+html[data-theme="dark"] {
+  --board_bg: #0e0e0e;
+  --board_item_bg: #141414;
+  --board_item_line: #2a2a2a;
+  --board_caption: #9a9a9a;
+  --board_title: #ececec;
+  --board_panel: #161616;
+  --board_panel_line: #333333;
+  --board_hover: #232323;
+  --board_text: #ececec;
+  --board_mute: #9a9a9a;
+}
+html, body { margin: 0; background: var(--board_bg); font-family: system-ui; }
+html { scrollbar-width: none; }
+html::-webkit-scrollbar { display: none; }
+#space { position: relative; }
+#board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.item { position: absolute; border: 1px solid var(--board_item_line); background: var(--board_item_bg); }
+.caption { position: absolute; top: -28px; font-size: 14px; color: var(--board_caption); white-space: nowrap; text-decoration: none; }
+.caption:hover { color: var(--board_text); text-decoration: underline; }
+.group { position: absolute; font-size: 64px; font-weight: 700; color: var(--board_title); white-space: nowrap; }
+.panning, .panning * { cursor: grab !important; user-select: none; }
+.dragging, .dragging * { cursor: grabbing !important; }
+.zoom { position: fixed; left: var(--spacing_x2); bottom: var(--spacing_x2); z-index: 1000; }
+.zoom .zoom_value {
+  width: 56px;
+  height: var(--control_height);
+  border: 1px solid transparent;
+  border-radius: var(--radius_md);
+  background: transparent;
+  color: var(--text_secondary);
+  font: var(--font_weight_medium) var(--font_size_control) / 1 var(--font_sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.zoom .zoom_value:hover { background: var(--surface_hover); color: var(--text); }
+.zoom .zoom_value:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus_ring); background: var(--surface); color: var(--text); }
+.board_error { position: fixed; inset: var(--spacing_x8) var(--spacing_x2) auto; max-width: 560px; margin: 0 auto; padding: var(--spacing_x3); border: var(--border); border-radius: var(--radius_lg); background: var(--surface_raised); color: var(--text); font: var(--font_size_body) / var(--line_height_text) var(--font_sans); }
+.board_error strong { display: block; margin-bottom: var(--spacing_x1); }
+.board_error p { margin: 0; color: var(--text_secondary); }

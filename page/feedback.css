@@ -90,7 +90,10 @@
 .fb_actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--spacing_x0_75); }
 .fb_actions > [data-variant="quiet"]:first-child { margin-right: auto; }
 
-.fb_panel h2 { margin: 0 0 var(--spacing_half); font-size: var(--font_size_title_3); }
+.fb_panel_head { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing_x1); margin-bottom: var(--spacing_half); }
+.fb_panel_head h2 { margin: 0; font-size: var(--font_size_title_3); }
+.fb_panel_head .ui_button { margin-right: calc(-1 * var(--spacing_x1)); color: var(--text_secondary); }
+.fb_panel_head .ui_button:hover { color: var(--text); }
 .fb_panel h3 { margin: var(--spacing_x2) 0 var(--spacing_x0_75); color: var(--text_secondary); font-size: var(--font_size_small); font-weight: var(--font_weight_medium); }
 
 .fb_note {
@@ -104,6 +107,42 @@
 
 .fb_note:hover { background: var(--surface_hover); }
 .fb_note[data-done] .fb_text { color: var(--text_secondary); text-decoration: line-through; }
-.fb_note input { accent-color: var(--accent); }
 
-.fb_text { flex: 1; min-width: 0; }
+.fb_text { flex: 1; min-width: 0; padding-top: 1px; white-space: pre-line; overflow-wrap: anywhere; }
+
+.fb_note_actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin: -1px -2px 0 0;
+}
+
+.fb_note_actions[hidden] { display: none; }
+
+.fb_note_actions .ui_icon_button {
+  width: 24px;
+  height: 24px;
+  color: var(--text_secondary);
+}
+
+.fb_note_actions .ui_icon_button:hover { color: var(--text); background: var(--surface_soft); }
+.fb_note_actions [aria-pressed="true"] { color: var(--accent); }
+
+.fb_edit { display: flex; flex: 1; flex-direction: column; gap: var(--spacing_half); min-width: 0; }
+
+.fb_back {
+  position: fixed;
+  left: var(--spacing_x2);
+  bottom: var(--spacing_x2);
+  z-index: 1000;
+  text-decoration: none;
+}
+
+.fb_pop textarea.ui_field,
+.fb_edit textarea.ui_field {
+  min-height: var(--control_height);
+  max-height: 160px;
+  overflow-y: auto;
+  padding-top: var(--spacing_x0_75);
+  padding-bottom: var(--spacing_x0_75);
+}

@@ -1,5 +1,7 @@
-const FOLDER = location.pathname.replace(/^\/|\/[^/]*$/g, "");
-const FILE = `${FOLDER}/FEEDBACK.md`;
+import { icon } from "./icons.js";
+
+const FOLDER = decodeURIComponent(location.pathname).replace(/^\/|\/?[^/]*$/g, "");
+const FILE = FOLDER ? `${FOLDER}/FEEDBACK.md` : "FEEDBACK.md";
 const ITEM = /^- \[( |x)\] (\d+)\. `([^`]+)` — (.*)$/;
 const SCREEN_HEADING = /^## (\S+\.html)/;
 
@@ -38,14 +40,36 @@ const selectorOf = (element, root) => {
   return `:scope > ${parts.join(" > ")}`;
 };
 
+const CONTINUATION = "  ";
+
 const parse = (text) => {
+  const list = [];
   let screen = null;
+  let last = null;
   for (const line of text.split("\n")) {
     const heading = line.match(SCREEN_HEADING);
     if (heading) screen = heading[1];
     const item = line.match(ITEM);
-    if (item && screen) notes.push({ screen, done: item[1] === "x", id: Number(item[2]), selector: item[3], text: item[4] });
+    if (item && screen) {
+      last = { screen, done: item[1] === "x", id: Number(item[2]), selector: item[3], text: item[4] };
+      list.push(last);
+    } else if (last && line.startsWith(CONTINUATION) && line.trim()) {
+      last.text += `\n${line.trim()}`;
+    } else if (line.trim()) {
+      last = null;
+    }
   }
+  return list;
+};
+
+const cleanText = (value) => value.split("\n")
+  .map((line) => line.replace(/\s+/g, " ").trim())
+  .filter(Boolean)
+  .join("\n");
+
+const itemLines = (note) => {
+  const [first, ...rest] = note.text.split("\n");
+  return [`- [${note.done ? "x" : " "}] ${note.id}. \`${note.selector}\` — ${first}`, ...rest.map((line) => CONTINUATION + line)];
 };
 
 const serialize = () => {
@@ -53,27 +77,60 @@ const serialize = () => {
   const blocks = screens.map((screen) => {
     const title = titles.get(screen);
     const items = notes.filter((note) => note.screen === screen)
-      .map((note) => `- [${note.done ? "x" : " "}] ${note.id}. \`${note.selector}\` — ${note.text}`);
+      .flatMap(itemLines);
     return [`## ${screen}${title ? ` — ${title}` : ""}`, "", ...items].join("\n");
   });
-  return ["# Отзывы по макетам", "", "Открытые пункты `- [ ]` ждут правки, путь в обратных кавычках ведёт к элементу от `.screen` экрана.", "", ...blocks.flatMap((block) => [block, ""])].join("\n");
+  return ["# Комментарии к макетам", "", "Открытые пункты `- [ ]` ждут правки, путь в обратных кавычках ведёт к элементу от `.screen` экрана.", "", ...blocks.flatMap((block) => [block, ""])].join("\n");
 };
 
 const NOTICE_MS = 4000;
 
-const readFeedback = () => fetch(`/${FILE}`, { cache: "no-store" })
-  .then((response) => (response.ok ? response.text() : ""))
-  .catch(() => "");
+const fileUrl = (path) => `/${path.split("/").map(encodeURIComponent).join("/")}`;
+
+const NOT_FOUND = 404;
+
+const readFeedback = async () => {
+  const response = await fetch(fileUrl(FILE), { cache: "no-store" });
+  if (response.status === NOT_FOUND) return "";
+  if (!response.ok) throw new Error(`FEEDBACK.md не прочитался: ${response.status}`);
+  return response.text();
+};
 
 const save = async () => {
   const response = await fetch(`/api/save?path=${encodeURIComponent(FILE)}`, { method: "POST", body: serialize() })
     .catch(() => null);
   if (!response?.ok) {
-    notes.length = 0;
-    parse(await readFeedback());
-    notice("Не удалось сохранить отзыв, показано то, что лежит в FEEDBACK.md");
+    const onDisk = await readFeedback().catch(() => null);
+    if (onDisk !== null) notes.splice(0, notes.length, ...parse(onDisk));
+    notice(onDisk !== null
+      ? "Не удалось сохранить комментарий, показано то, что лежит в FEEDBACK.md"
+      : "Не удалось ни сохранить комментарий, ни прочитать FEEDBACK.md: изменения только на странице");
   }
   render();
+};
+
+const byId = (list, id) => list.find((item) => item.id === id);
+const withoutId = (list, id) => {
+  const index = list.findIndex((item) => item.id === id);
+  if (index >= 0) list.splice(index, 1);
+};
+
+let queue = Promise.resolve();
+
+const change = (apply) => {
+  queue = queue.then(async () => {
+    let fresh;
+    try {
+      fresh = parse(await readFeedback());
+    } catch (error) {
+      notice(`${error.message}, комментарий не сохранён`);
+      return;
+    }
+    apply(fresh);
+    notes.splice(0, notes.length, ...fresh);
+    await save();
+  }).catch((error) => notice(`Комментарий не сохранён: ${error.message}`));
+  return queue;
 };
 
 const SCREEN = ":scope";
@@ -127,17 +184,67 @@ const renderPins = () => {
   }
 };
 
+const openText = () => {
+  const open = notes.filter((note) => !note.done);
+  const blocks = [...new Set(open.map((note) => note.screen))].map((screen) => {
+    const title = titles.get(screen);
+    return [`## ${screen}${title ? ` — ${title}` : ""}`, ...open.filter((note) => note.screen === screen).flatMap(itemLines)].join("\n");
+  });
+  return [`Комментарии к макетам из ${FILE}, путь в обратных кавычках ведёт к элементу от .screen экрана:`, ...blocks].join("\n\n");
+};
+
+const copyOpen = async () => {
+  const count = notes.filter((note) => !note.done).length;
+  try {
+    await navigator.clipboard.writeText(openText());
+    notice(`Скопировано комментариев: ${count}`);
+  } catch {
+    notice("Браузер не дал доступ к буферу обмена");
+  }
+};
+
+const editInline = (row, note) => {
+  if (row.querySelector("form")) return;
+  const form = document.createElement("form");
+  form.className = "fb_edit";
+  form.innerHTML = `<textarea class="ui_field" aria-label="Текст комментария"></textarea><div class="ui_hint_text">Enter сохраняет, Shift+Enter перенос, Esc отмена</div>`;
+  const field = form.querySelector("textarea");
+  field.value = note.text;
+  field.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    renderPanel();
+  });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const text = cleanText(field.value);
+    if (!text || text === note.text) { renderPanel(); return; }
+    change((list) => { const item = byId(list, note.id); if (item) item.text = text; });
+  });
+  form.addEventListener("click", (event) => event.stopPropagation());
+  form.addEventListener("dblclick", (event) => event.stopPropagation());
+  row.querySelector(".fb_text").replaceWith(form);
+  row.querySelector(".fb_note_actions").hidden = true;
+  enterSubmits(form);
+  field.focus();
+  field.setSelectionRange(field.value.length, field.value.length);
+};
+
 const panel = document.createElement("aside");
 panel.className = "fb_panel ui_side_panel";
 panel.hidden = true;
 
 const renderPanel = () => {
   panel.replaceChildren();
-  const heading = document.createElement("h2");
-  heading.textContent = "Отзывы";
-  panel.append(heading);
+  const head = document.createElement("div");
+  head.className = "fb_panel_head";
+  head.innerHTML = `<h2>Комментарии</h2><button type="button" class="ui_button" data-variant="ghost">${icon("copy")}Скопировать открытые</button>`;
+  const copy = head.querySelector("button");
+  copy.disabled = !notes.some((note) => !note.done);
+  copy.addEventListener("click", copyOpen);
+  panel.append(head);
   if (!notes.length) {
-    panel.append(Object.assign(document.createElement("p"), { className: "ui_hint_text", textContent: "Пока пусто. Нажмите C или «Оставить отзыв» и щёлкните по элементу экрана. Щелчок по названию экрана оставляет отзыв на весь экран." }));
+    panel.append(Object.assign(document.createElement("p"), { className: "ui_hint_text", textContent: "Пока пусто. Нажмите C или «Оставить комментарий» и щёлкните по элементу экрана. Щелчок по названию экрана оставляет комментарий на весь экран." }));
   }
   for (const screen of new Set(notes.map((note) => note.screen))) {
     panel.append(Object.assign(document.createElement("h3"), { textContent: titles.get(screen) ?? screen }));
@@ -145,27 +252,34 @@ const renderPanel = () => {
       const row = document.createElement("div");
       row.className = "fb_note";
       if (note.done) row.dataset.done = "";
-      row.innerHTML = `<span class="fb_num"></span><span class="fb_text"></span><input type="checkbox" aria-label="Выполнено"><button type="button" class="ui_button" data-variant="quiet" aria-label="Удалить">✕</button>`;
+      row.innerHTML = `<span class="fb_num"></span><span class="fb_text"></span><span class="fb_note_actions"><button type="button" class="ui_icon_button" data-variant="ghost" data-done>${icon("check")}</button><button type="button" class="ui_icon_button" data-variant="ghost" data-edit aria-label="Изменить" title="Изменить">${icon("edit")}</button><button type="button" class="ui_icon_button" data-variant="ghost" data-delete aria-label="Удалить" title="Удалить">${icon("remove")}</button></span>`;
       row.querySelector(".fb_num").textContent = note.id;
       row.querySelector(".fb_text").textContent = note.text;
-      const done = row.querySelector("input");
-      done.checked = note.done;
-      done.addEventListener("click", (event) => { event.stopPropagation(); note.done = done.checked; save(); });
-      row.querySelector("button").addEventListener("click", (event) => {
+      const done = row.querySelector("[data-done]");
+      const doneLabel = note.done ? "Вернуть в работу" : "Выполнено";
+      done.setAttribute("aria-label", doneLabel);
+      done.title = doneLabel;
+      done.setAttribute("aria-pressed", String(note.done));
+      done.addEventListener("click", (event) => {
         event.stopPropagation();
-        notes.splice(notes.indexOf(note), 1);
-        save();
+        change((list) => { const item = byId(list, note.id); if (item) item.done = !note.done; });
+      });
+      row.querySelector("[data-edit]").addEventListener("click", (event) => {
+        event.stopPropagation();
+        editInline(row, note);
+      });
+      row.querySelector("[data-delete]").addEventListener("click", (event) => {
+        event.stopPropagation();
+        change((list) => withoutId(list, note.id));
       });
       row.addEventListener("click", () => {
+        if (row.querySelector("form")) return;
         const element = target(note);
         if (!element) return;
         element.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
         flash(element);
       });
-      row.addEventListener("dblclick", () => {
-        const box = row.getBoundingClientRect();
-        showNote(note, box.left - 340, box.top);
-      });
+      row.addEventListener("dblclick", () => editInline(row, note));
       panel.append(row);
     }
   }
@@ -173,7 +287,7 @@ const renderPanel = () => {
 
 const counter = document.createElement("button");
 const render = () => {
-  counter.textContent = `Отзывы (${notes.filter((note) => !note.done).length})`;
+  counter.textContent = `Комментарии (${notes.filter((note) => !note.done).length})`;
   renderPanel();
   renderPins();
 };
@@ -181,6 +295,25 @@ const render = () => {
 const openPanel = (open) => {
   panel.hidden = !open;
   counter.setAttribute("aria-pressed", String(open));
+};
+
+const FIELD_MAX_HEIGHT = 160;
+
+const growField = (field) => {
+  field.style.height = "auto";
+  field.style.height = `${Math.min(field.scrollHeight, FIELD_MAX_HEIGHT)}px`;
+};
+
+const enterSubmits = (box) => {
+  const field = box.querySelector("textarea");
+  field.rows = 1;
+  field.addEventListener("input", () => growField(field));
+  field.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    box.requestSubmit();
+  });
+  requestAnimationFrame(() => growField(field));
 };
 
 const placePopup = (box, x, y) => {
@@ -192,23 +325,23 @@ const placePopup = (box, x, y) => {
   box.style.setProperty("--popover_y", `${Math.max(8, Math.min(y, innerHeight - 260))}px`);
   box.addEventListener("toggle", (event) => { if (event.newState === "closed") box.remove(); });
   document.body.append(box);
+  enterSubmits(box);
   box.showPopover();
 };
 
 const popup = (screen, selector, x, y) => {
   const box = document.createElement("form");
   const whole = selector === SCREEN;
-  box.innerHTML = `<div class="fb_pop_head"></div><textarea class="ui_field" placeholder="Что хочется поменять?"></textarea><div class="ui_mono ui_hint_text"></div><div class="fb_actions"><button type="button" class="ui_button" data-variant="ghost">Отмена</button><button type="submit" class="ui_button" data-variant="primary">Сохранить</button></div>`;
+  box.innerHTML = `<div class="fb_pop_head"></div><textarea class="ui_field" placeholder="Что поменять? Enter сохраняет, Shift+Enter перенос строки"></textarea><div class="ui_mono ui_hint_text"></div><div class="fb_actions"><button type="button" class="ui_button" data-variant="ghost">Отмена</button><button type="submit" class="ui_button" data-variant="primary">Сохранить</button></div>`;
   box.querySelector(".fb_pop_head").textContent = whole ? `Весь экран «${titles.get(screen) ?? screen}»` : (titles.get(screen) ?? screen);
   box.querySelector(".ui_mono").textContent = whole ? screen : `${screen} ${selector}`;
   box.querySelector("button[type=button]").addEventListener("click", () => box.hidePopover());
   box.addEventListener("submit", (event) => {
     event.preventDefault();
-    const text = box.querySelector("textarea").value.replace(/\s+/g, " ").trim();
+    const text = cleanText(box.querySelector("textarea").value);
     if (!text) return;
-    notes.push({ screen, selector, text, done: false, id: Math.max(0, ...notes.map((note) => note.id)) + 1 });
     box.hidePopover();
-    save();
+    change((list) => list.push({ screen, selector, text, done: false, id: Math.max(0, ...list.map((note) => note.id)) + 1 }));
   });
   placePopup(box, x, y);
   box.querySelector("textarea").focus();
@@ -223,18 +356,19 @@ const showNote = (note, x, y) => {
   box.querySelector(".ui_mono").textContent = `${note.screen} ${note.selector}`;
   const done = box.querySelector("[data-done]");
   done.textContent = note.done ? "Вернуть в работу" : "Выполнено";
-  done.addEventListener("click", () => { note.done = !note.done; box.hidePopover(); save(); });
-  box.querySelector("[data-delete]").addEventListener("click", () => {
-    notes.splice(notes.indexOf(note), 1);
+  done.addEventListener("click", () => {
     box.hidePopover();
-    save();
+    change((list) => { const item = byId(list, note.id); if (item) item.done = !note.done; });
+  });
+  box.querySelector("[data-delete]").addEventListener("click", () => {
+    box.hidePopover();
+    change((list) => withoutId(list, note.id));
   });
   box.addEventListener("submit", (event) => {
     event.preventDefault();
-    const text = box.querySelector("textarea").value.replace(/\s+/g, " ").trim();
-    if (text) note.text = text;
+    const text = cleanText(box.querySelector("textarea").value);
     box.hidePopover();
-    save();
+    if (text) change((list) => { const item = byId(list, note.id); if (item) item.text = text; });
   });
   placePopup(box, x, y);
 };
@@ -301,8 +435,10 @@ addEventListener("keydown", (event) => {
 });
 addEventListener("resize", renderPins);
 
-for (const href of ["/blueprint/ui.css", "feedback.css"]) {
-  document.head.append(Object.assign(document.createElement("link"), { rel: "stylesheet", href }));
+for (const href of ["/blueprint/ui.css", "/blueprint/feedback.css"]) {
+  if (!document.querySelector(`link[href="${href}"]`)) {
+    document.head.append(Object.assign(document.createElement("link"), { rel: "stylesheet", href }));
+  }
 }
 const bar = document.createElement("div");
 bar.className = "fb_bar fb_ui ui_toolbar";
@@ -312,7 +448,7 @@ try {
     ?? document.documentElement.dataset.theme
     ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 } catch {}
-const modeButton = Object.assign(document.createElement("button"), { type: "button", className: "ui_button", innerHTML: "Оставить отзыв<span class=\"ui_kbd\">C</span>" });
+const modeButton = Object.assign(document.createElement("button"), { type: "button", className: "ui_button", innerHTML: "Оставить комментарий<span class=\"ui_kbd\">C</span>" });
 modeButton.dataset.variant = "ghost";
 modeButton.setAttribute("aria-pressed", "false");
 modeButton.addEventListener("click", () => toggleMode(modeButton));
@@ -328,9 +464,9 @@ document.body.append(panel, bar, modeHint);
 
 const [manifest, feedback] = await Promise.all([
   fetch("screens.json").then((response) => response.json()).catch(() => ({ screens: [] })),
-  readFeedback(),
+  readFeedback().catch(() => ""),
 ]);
 for (const screen of manifest.screens ?? []) titles.set(screen.file, screen.title);
-parse(feedback);
+notes.push(...parse(feedback));
 render();
 openPanel(false);

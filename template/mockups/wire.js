@@ -1,65 +1,14 @@
-const loadSite = async () => (await (await fetch("screens.json")).json()).site;
+import { renderScreens } from "/blueprint/screen.js";
 
-const REFRESH_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>`;
-
-const header = (SITE, active) => `
-  <div class="h2">${SITE.logo}</div>
-  <div class="nav">${SITE.nav.map((item) =>
-    `<div class="nav_item${item === active ? " nav_item_active" : ""}">${item}</div>`).join("")}</div>
+const header = (site, slot) => `
+  <div class="h2">${site.logo ?? ""}</div>
+  <div class="nav">${(site.nav ?? []).map((item) =>
+    `<div class="nav_item${item === slot.dataset.active ? " nav_item_active" : ""}">${item}</div>`).join("")}</div>
   <div class="grow"></div>
-  <div class="row gap_16">
-    <div class="label">${SITE.updated}</div>
-    <button class="btn">${SITE.action}</button>
-  </div>`;
+  <button class="btn">${site.action ?? ""}</button>`;
 
-const headerMobile = (SITE) => `
-  <div class="t fs_18 fw_700">${SITE.logo}</div>
-  <button class="btn_icon" aria-label="${SITE.refreshLabel}">${REFRESH_ICON}</button>`;
+const headerMobile = (site) => `
+  <div class="t fs_18 fw_700">${site.logo ?? ""}</div>
+  <button class="btn_icon" aria-label="${site.menuLabel ?? "Меню"}"><span data-icon="menu"></span></button>`;
 
-const slots = document.querySelectorAll("[data-wire]");
-if (slots.length) {
-  const SITE = await loadSite();
-  for (const slot of slots) {
-    if (slot.dataset.wire === "header") {
-      slot.className = "header";
-      slot.innerHTML = header(SITE, slot.dataset.active);
-    } else if (slot.dataset.wire === "header_mobile") {
-      slot.className = "header_mobile";
-      slot.innerHTML = headerMobile(SITE);
-    }
-  }
-}
-
-for (let node; (node = document.querySelector("[data-repeat]"));) {
-  const count = Number(node.dataset.repeat);
-  node.removeAttribute("data-repeat");
-  const copies = Array.from({ length: count - 1 }, () => node.cloneNode(true));
-  node.after(...copies);
-  [node, ...copies].forEach((item, index) => { item.dataset.copy = `${index + 1}/${count}`; });
-}
-
-const ICONS = "https://esm.sh/lucide-static@1.51.0/icons";
-const iconCache = new Map();
-const loadIcon = (name) => {
-  if (!iconCache.has(name)) {
-    iconCache.set(name, fetch(`${ICONS}/${name}.svg`).then((response) => (response.ok ? response.text() : null)).catch(() => null));
-  }
-  return iconCache.get(name);
-};
-await Promise.all([...document.querySelectorAll("[data-icon]")].map(async (node) => {
-  const svg = await loadIcon(node.dataset.icon);
-  if (svg) node.insertAdjacentHTML("afterbegin", svg.replace(/<!--.*?-->/s, ""));
-  else node.dataset.iconMissing = "";
-}));
-
-const annotate = new URLSearchParams(location.search).has("annotate");
-if (window.WIRE_ANNOTATE || annotate || window.top === window) {
-  import("./feedback.js");
-  if (annotate) {
-    const back = document.createElement("a");
-    back.className = "back_chip";
-    back.href = "index.html";
-    back.textContent = "← Доска";
-    document.body.append(back);
-  }
-}
+await renderScreens({ header, header_mobile: headerMobile });
