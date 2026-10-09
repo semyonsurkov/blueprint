@@ -1,0 +1,87 @@
+.fb_ui {
+  font-family: var(--font_sans);
+  font-size: var(--font_size_body);
+  line-height: var(--line_height_control);
+  color: var(--text);
+}
+
+:root[data-theme="dark"][data-framed] .fb_ui,
+:root[data-theme="dark"][data-framed] .fb_pin {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.fb_bar {
+  position: fixed;
+  right: var(--spacing_x2);
+  bottom: var(--spacing_x2);
+  z-index: 1000;
+}
+
+.fb_mode .screen *,
+.fb_mode .caption {
+  cursor: crosshair !important;
+}
+
+.fb_hover { outline: 2px dashed var(--gray_10) !important; outline-offset: 2px; }
+.fb_flash { outline: 2px solid var(--gray_10) !important; outline-offset: 3px; }
+
+.fb_layer {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.fb_pin {
+  position: absolute;
+  left: var(--pin_x);
+  top: var(--pin_y);
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border: 2px solid var(--surface);
+  border-radius: 50% 50% 50% 0;
+  background: var(--text);
+  color: var(--surface);
+  font: var(--font_weight_semibold) var(--font_size_small) / 20px var(--font_sans);
+  text-align: center;
+  box-shadow: var(--shadow_sm);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.fb_pin[data-done],
+.fb_note[data-done] .fb_num { background: var(--text_secondary); }
+
+.fb_pop_head { display: flex; align-items: center; gap: var(--spacing_x1); font-weight: var(--font_weight_semibold); }
+.fb_actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--spacing_x0_75); }
+.fb_actions > :first-child[data-variant="quiet"] { margin-right: auto; }
+
+.fb_panel h2 { margin: 0 0 var(--spacing_half); font-size: var(--font_size_title_3); }
+.fb_panel h3 { margin: var(--spacing_x2) 0 var(--spacing_x0_75); color: var(--text_secondary); font-size: var(--font_size_small); }
+
+.fb_note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing_x1);
+  padding: var(--spacing_x1);
+  border-radius: var(--radius_md);
+  cursor: pointer;
+}
+
+.fb_note:hover { background: var(--surface_hover); }
+.fb_note[data-done] .fb_text { color: var(--text_secondary); text-decoration: line-through; }
+.fb_note input { accent-color: var(--text); }
+
+.fb_num {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--text);
+  color: var(--surface);
+  font: var(--font_weight_semibold) var(--font_size_small) / 22px var(--font_sans);
+  text-align: center;
+}
+
+.fb_text { flex: 1; min-width: 0; }

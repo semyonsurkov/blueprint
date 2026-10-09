@@ -253,6 +253,7 @@ const skeleton = (kind) => {
 const docsButton = (tab) => {
   const button = document.createElement("button");
   button.id = "docs_toggle";
+  button.className = "button";
   button.textContent = tab.docs_label ?? "Документы";
   const slot = document.getElementById("docs_slot");
   if (slot) slot.replaceWith(button);
