@@ -6,16 +6,182 @@ import json
 import os
 import shutil
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import mockups  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PAGE_DIR = REPO_ROOT / "page"
-TEMPLATE_CONFIG = REPO_ROOT / "template" / "blueprint.json"
 INSTALL_DIR = "blueprint"
 MOCKUPS_TEMPLATE = REPO_ROOT / "template" / "mockups"
-MOCKUPS_DIR = Path("design") / "mockups"
 CONFIG_NAME = "blueprint.json"
 SERVER_NAME = "serve.py"
+DEFAULT_PORT = 5190
+NONE = "нет"
+STANDARD = {
+    "docs": "docs",
+    "mockups": "design/mockups",
+    "roadmap": "docs/roadmap.md",
+    "ideas": "IDEAS.md",
+}
+DOCS_CANDIDATES = ("docs", "documents", "documentation", "doc", "wiki")
+ADR_NAMES = ("adr", "decisions")
+EXCLUDE_NAMES = ("archive", "archived", "old")
+STACK_NAMES = ("stack.md", "tech-stack.md")
+ARCHITECTURE_NAMES = ("architecture.md",)
+
+
+@dataclass
+class Layout:
+    title: str
+    docs: str | None
+    exclude: list[str] = field(default_factory=list)
+    architecture: str | None = None
+    overview: list[str] = field(default_factory=list)
+    mockups: str | None = None
+    roadmap: str | None = None
+    ideas: str | None = None
+    adr: str | None = None
+
+
+def markdown_count(folder: Path) -> int:
+    return sum(1 for _ in folder.rglob("*.md")) if folder.is_dir() else 0
+
+
+def first_existing(root: Path, candidates: list[str]) -> str | None:
+    return next((item for item in candidates if (root / item).exists()), None)
+
+
+def find_named(root: Path, folder: str, names: tuple[str, ...], exclude: list[str]) -> str | None:
+    base = root / folder
+    if not base.is_dir():
+        return None
+    for name in names:
+        for path in sorted(base.rglob(name), key=lambda item: len(item.parts)):
+            if not any(part in exclude for part in path.relative_to(base).parts):
+                return path.relative_to(root).as_posix()
+    return None
+
+
+def readme_title(root: Path) -> str:
+    readme = root / "README.md"
+    if readme.is_file():
+        for line in readme.read_text(errors="ignore").splitlines():
+            if line.startswith("# "):
+                return line[2:].strip()
+    return root.name
+
+
+def detect(root: Path) -> Layout:
+    found = [name for name in DOCS_CANDIDATES if markdown_count(root / name) > 0]
+    docs = found[0] if found else STANDARD["docs"]
+    standard = docs == STANDARD["docs"]
+    base = root / docs
+    exclude = [name for name in EXCLUDE_NAMES if (base / name).is_dir()]
+    excalidraw = sorted(base.rglob("*.excalidraw")) if base.is_dir() else []
+    overview = [
+        found
+        for found in (
+            find_named(root, docs, STACK_NAMES, exclude),
+            find_named(root, docs, ARCHITECTURE_NAMES, exclude),
+        )
+        if found
+    ]
+    return Layout(
+        title=readme_title(root),
+        docs=docs,
+        exclude=exclude,
+        architecture=excalidraw[0].relative_to(root).as_posix() if excalidraw else f"{docs}/architecture.excalidraw",
+        overview=overview,
+        mockups=STANDARD["mockups"] if standard or (root / STANDARD["mockups"]).is_dir() else None,
+        roadmap=first_existing(root, [f"{docs}/roadmap.md", "ROADMAP.md"]) or (STANDARD["roadmap"] if standard else None),
+        ideas=first_existing(root, ["IDEAS.md", f"{docs}/ideas.md"]) or (STANDARD["ideas"] if standard else None),
+        adr=first_existing(root, [f"{docs}/{name}" for name in ADR_NAMES]),
+    )
+
+
+def describe(root: Path, layout: Layout) -> str:
+    if layout.docs and (root / layout.docs).is_dir():
+        found = [f"{layout.docs}/ ({markdown_count(root / layout.docs)} .md)"]
+        if layout.adr:
+            found.append(f"{layout.adr}/")
+        return "нашёл в проекте: " + ", ".join(found)
+    return "документации в проекте пока нет, предлагаю раскладку по умолчанию"
+
+
+def ask(label: str, value: str | None) -> str | None:
+    shown = value or NONE
+    answer = input(f"{label} [{shown}]: ").strip()
+    if not answer:
+        return value
+    return None if answer == NONE else answer.strip("/")
+
+
+def ask_list(label: str, values: list[str]) -> list[str]:
+    shown = ", ".join(values) or NONE
+    answer = input(f"{label} [{shown}]: ").strip()
+    if not answer:
+        return values
+    return [] if answer == NONE else [item.strip() for item in answer.split(",") if item.strip()]
+
+
+def from_flag(value: str | None) -> str | None:
+    return None if value == NONE else value.strip("/")
+
+
+def configure(root: Path, args: argparse.Namespace) -> Layout:
+    layout = detect(root)
+    for name in ("docs", "architecture", "mockups", "roadmap", "ideas", "adr"):
+        flag = getattr(args, name)
+        if flag is not None:
+            setattr(layout, name, from_flag(flag))
+    if args.title:
+        layout.title = args.title
+    if args.exclude is not None:
+        layout.exclude = [] if args.exclude == NONE else [item.strip() for item in args.exclude.split(",") if item.strip()]
+    if args.yes or not sys.stdin.isatty():
+        return layout
+    print(describe(root, layout))
+    print(f"Enter оставляет предложенное, «{NONE}» убирает пункт")
+    layout.title = ask("Название проекта", layout.title) or root.name
+    layout.docs = ask("Документация (папка)", layout.docs)
+    if layout.docs:
+        layout.exclude = ask_list("Исключить из документации", layout.exclude)
+    layout.architecture = ask("Схема архитектуры (.excalidraw)", layout.architecture)
+    layout.mockups = ask("Макеты экранов (папка)", layout.mockups)
+    layout.roadmap = ask("Roadmap (файл)", layout.roadmap)
+    layout.ideas = ask("Идеи (файл)", layout.ideas)
+    layout.adr = ask("ADR (папка)", layout.adr)
+    return layout
+
+
+def build_config(layout: Layout) -> dict:
+    tabs = []
+    if layout.architecture:
+        tab = {"id": "architecture", "title": "Архитектура", "type": "excalidraw", "file": layout.architecture}
+        if layout.overview:
+            stack = any(Path(path).name in STACK_NAMES for path in layout.overview)
+            tab |= {"docs": layout.overview, "docs_label": "Стек" if stack else "Описание"}
+        seed = next((path for path in layout.overview if Path(path).name in ARCHITECTURE_NAMES), None)
+        if seed:
+            tab["seed"] = seed
+        tabs.append(tab)
+    if layout.docs:
+        tab = {"id": "docs", "title": "Документация", "type": "docs", "dir": layout.docs}
+        if layout.exclude:
+            tab["exclude"] = layout.exclude
+        tabs.append(tab)
+    if layout.adr:
+        tabs.append({"id": "adr", "title": "ADR", "type": "adr", "dir": layout.adr})
+    if layout.mockups:
+        tabs.append({"id": "mockups", "title": "Макеты", "type": "frame", "src": f"{layout.mockups}/index.html"})
+    plan = [{"path": layout.roadmap, "collapsed": False}] if layout.roadmap else []
+    plan += [{"path": layout.ideas, "collapsed": True}] if layout.ideas else []
+    if plan:
+        tabs.append({"id": "mvp", "title": "MVP", "type": "markdown", "docs": plan})
+    return {"title": layout.title, "port": DEFAULT_PORT, "tabs": tabs}
 
 
 def find_project_root(start: Path) -> Path | None:
@@ -36,21 +202,23 @@ def copy_page(target: Path) -> list[str]:
 def init(args: argparse.Namespace) -> int:
     root = Path.cwd()
     target = root / INSTALL_DIR
-    copy_page(target)
     config_file = target / CONFIG_NAME
-    if config_file.exists():
-        print(f"{INSTALL_DIR}/{CONFIG_NAME} уже есть, не трогаю")
-    else:
-        config = json.loads(TEMPLATE_CONFIG.read_text())
-        config["title"] = root.name
-        config_file.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n")
-        print(f"создан {INSTALL_DIR}/{CONFIG_NAME}")
-    mockups = root / MOCKUPS_DIR
-    if mockups.exists():
-        print(f"{MOCKUPS_DIR}/ уже есть, не трогаю")
-    else:
-        shutil.copytree(MOCKUPS_TEMPLATE, mockups)
-        print(f"создан {MOCKUPS_DIR}/: wire.css, wire.js, доска index.html, screens.json и образец Example.html")
+    if config_file.exists() and not args.reconfigure:
+        copy_page(target)
+        print(f"{INSTALL_DIR}/{CONFIG_NAME} уже есть, не трогаю; пересобрать: blueprint init --reconfigure")
+        return 0
+    layout = configure(root, args)
+    copy_page(target)
+    config = build_config(layout)
+    config_file.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n")
+    print(f"создан {INSTALL_DIR}/{CONFIG_NAME}, вкладки: {', '.join(tab['title'] for tab in config['tabs']) or NONE}")
+    if layout.mockups:
+        mockups = root / layout.mockups
+        if mockups.exists():
+            print(f"{layout.mockups}/ уже есть, не трогаю")
+        else:
+            shutil.copytree(MOCKUPS_TEMPLATE, mockups)
+            print(f"создан {layout.mockups}/: wire.css, wire.js, доска index.html, screens.json и образец Example.html")
     print(f"страница в {INSTALL_DIR}/, запуск: blueprint")
     return 0
 
@@ -62,6 +230,47 @@ def update(args: argparse.Namespace) -> int:
         return 1
     names = copy_page(root / INSTALL_DIR)
     print(f"обновлено: {', '.join(names)}; {CONFIG_NAME} не тронут")
+    return 0
+
+
+def project_mockups() -> Path | None:
+    root = find_project_root(Path.cwd())
+    if root is None:
+        print("blueprint/ не найден, сначала blueprint init", file=sys.stderr)
+        return None
+    config = json.loads((root / INSTALL_DIR / CONFIG_NAME).read_text())
+    folder = mockups.mockups_dir(root, config)
+    if folder is None or not folder.is_dir():
+        print("в blueprint.json нет вкладки макетов; добавь её: blueprint init --reconfigure", file=sys.stderr)
+        return None
+    return folder
+
+
+def check(args: argparse.Namespace) -> int:
+    folder = project_mockups()
+    if folder is None:
+        return 1
+    problems = mockups.check(folder)
+    for problem in problems:
+        print(f"{folder.name}/{problem}")
+    if problems:
+        print(f"найдено проблем: {len(problems)}", file=sys.stderr)
+        return 1
+    print(f"макеты в порядке: {folder.name}/")
+    return 0
+
+
+def new_screen(args: argparse.Namespace) -> int:
+    folder = project_mockups()
+    if folder is None:
+        return 1
+    try:
+        width, height = (int(part) for part in args.size.lower().split("x"))
+        target = mockups.new_screen(folder, args.name, args.title, args.group, (width, height), args.about)
+    except ValueError as error:
+        print(f"blueprint: {error}", file=sys.stderr)
+        return 1
+    print(f"создан {target.relative_to(Path.cwd()) if target.is_relative_to(Path.cwd()) else target} и запись в {mockups.MANIFEST}")
     return 0
 
 
@@ -78,9 +287,28 @@ def serve(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(prog="blueprint", description="Локальная страница проекта: схема, макеты, roadmap")
     commands = parser.add_subparsers(dest="command")
-    commands.add_parser("init", help="положить страницу в ./blueprint/").set_defaults(run=init)
+    init_parser = commands.add_parser("init", help="положить страницу в ./blueprint/ и собрать конфиг под раскладку проекта")
+    init_parser.add_argument("--title", help="название проекта, по умолчанию заголовок README.md")
+    init_parser.add_argument("--docs", help=f"папка документации или «{NONE}»")
+    init_parser.add_argument("--exclude", help="подпапки документации через запятую, которые не показывать")
+    init_parser.add_argument("--architecture", help=f"файл схемы .excalidraw или «{NONE}»")
+    init_parser.add_argument("--mockups", help=f"папка макетов экранов или «{NONE}»")
+    init_parser.add_argument("--roadmap", help=f"файл roadmap или «{NONE}»")
+    init_parser.add_argument("--ideas", help=f"файл идей или «{NONE}»")
+    init_parser.add_argument("--adr", help=f"папка ADR или «{NONE}»")
+    init_parser.add_argument("--yes", action="store_true", help="не задавать вопросов, взять найденное и флаги")
+    init_parser.add_argument("--reconfigure", action="store_true", help="пересобрать существующий blueprint.json")
+    init_parser.set_defaults(run=init)
     commands.add_parser("update", help="обновить код страницы, конфиг не трогать").set_defaults(run=update)
     commands.add_parser("serve", help="запустить сервер (по умолчанию)").set_defaults(run=serve)
+    commands.add_parser("check", help="проверить макеты: манифест, классы, style, блоки").set_defaults(run=check)
+    screen_parser = commands.add_parser("new-screen", help="создать файл экрана и запись в screens.json")
+    screen_parser.add_argument("name", help="имя файла в PascalCase, например OrderDetail")
+    screen_parser.add_argument("--title", required=True, help="подпись экрана на доске")
+    screen_parser.add_argument("--group", default="Десктоп", help="группа на доске, по умолчанию «Десктоп»")
+    screen_parser.add_argument("--size", default="1280x800", help="ширина x высота, по умолчанию 1280x800")
+    screen_parser.add_argument("--about", required=True, help="одно предложение: что на экране")
+    screen_parser.set_defaults(run=new_screen)
     args = parser.parse_args()
     return getattr(args, "run", serve)(args)
 
