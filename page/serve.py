@@ -11,6 +11,7 @@ HOST = "127.0.0.1"
 DEFAULT_PORT = 5190
 PAGE_URL = "/blueprint/"
 HIDDEN_PREFIXES = (".git", ".env")
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 FEEDBACK_NAME = "FEEDBACK.md"
 
 
@@ -87,7 +88,8 @@ class Handler(SimpleHTTPRequestHandler):
         if url.path != "/api/save":
             self.send_error(404)
             return
-        if self.headers.get("Origin") not in (None, f"http://{self.headers.get('Host')}"):
+        origin = self.headers.get("Origin")
+        if origin is not None and urlparse(origin).hostname not in LOOPBACK_HOSTS:
             self._send_json(403, b'{"error":"foreign origin"}')
             return
         relative = parse_qs(url.query).get("path", [""])[0]

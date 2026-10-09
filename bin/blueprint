@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -274,6 +275,22 @@ def new_screen(args: argparse.Namespace) -> int:
     return 0
 
 
+LIVE_RELOAD = "browser-sync@3"
+LIVE_IGNORE = ["**/FEEDBACK.md", "**/*.excalidraw"]
+
+
+def watched_paths(config: dict) -> list[str]:
+    paths = [f"{INSTALL_DIR}/*.css", f"{INSTALL_DIR}/*.js", f"{INSTALL_DIR}/*.html", f"{INSTALL_DIR}/{CONFIG_NAME}"]
+    for tab in config["tabs"]:
+        if tab["type"] in ("docs", "adr"):
+            paths.append(f"{tab['dir']}/**/*.md")
+        elif tab["type"] == "frame":
+            paths.append(f"{Path(tab['src']).parent.as_posix()}/**/*")
+        for item in tab.get("docs", []):
+            paths.append(item if isinstance(item, str) else item["path"])
+    return paths
+
+
 def serve(args: argparse.Namespace) -> int:
     root = find_project_root(Path.cwd())
     if root is None:
@@ -281,7 +298,27 @@ def serve(args: argparse.Namespace) -> int:
         return 1
     server = root / INSTALL_DIR / SERVER_NAME
     os.chdir(root)
-    os.execv(sys.executable, [sys.executable, str(server)])
+    if not getattr(args, "live", False):
+        os.execv(sys.executable, [sys.executable, str(server)])
+    if shutil.which("npx") is None:
+        print("blueprint: для --live нужен Node.js (npx), запускаю без живого обновления", file=sys.stderr)
+        os.execv(sys.executable, [sys.executable, str(server)])
+    config = json.loads((root / INSTALL_DIR / CONFIG_NAME).read_text())
+    port = int(config.get("port", DEFAULT_PORT))
+    backend = subprocess.Popen([sys.executable, str(server)])
+    command = [
+        "npx", "--yes", LIVE_RELOAD, "start",
+        "--proxy", f"http://127.0.0.1:{port}", "--port", str(port + 1), "--listen", "127.0.0.1",
+        "--files", *watched_paths(config), "--ignore", *LIVE_IGNORE,
+        "--no-open", "--no-notify", "--no-ui", "--no-ghost-mode",
+    ]
+    print(f"blueprint: живое обновление на http://localhost:{port + 1}", flush=True)
+    try:
+        return subprocess.call(command)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        backend.terminate()
 
 
 def main() -> int:
@@ -300,7 +337,9 @@ def main() -> int:
     init_parser.add_argument("--reconfigure", action="store_true", help="пересобрать существующий blueprint.json")
     init_parser.set_defaults(run=init)
     commands.add_parser("update", help="обновить код страницы, конфиг не трогать").set_defaults(run=update)
-    commands.add_parser("serve", help="запустить сервер (по умолчанию)").set_defaults(run=serve)
+    serve_parser = commands.add_parser("serve", help="запустить сервер (по умолчанию)")
+    serve_parser.add_argument("--live", action="store_true", help="обновлять страницу при правке файлов (browser-sync через npx)")
+    serve_parser.set_defaults(run=serve)
     commands.add_parser("check", help="проверить макеты: манифест, классы, style, блоки").set_defaults(run=check)
     screen_parser = commands.add_parser("new-screen", help="создать файл экрана и запись в screens.json")
     screen_parser.add_argument("name", help="имя файла в PascalCase, например OrderDetail")
