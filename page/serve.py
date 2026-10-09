@@ -3,7 +3,7 @@ import sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = Path(__file__).parent / "blueprint.json"
@@ -11,12 +11,12 @@ HOST = "127.0.0.1"
 DEFAULT_PORT = 5190
 PAGE_URL = "/blueprint/"
 HIDDEN_PREFIXES = (".git", ".env")
-LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "[::1]")
 FEEDBACK_NAME = "FEEDBACK.md"
 
 
 def read_config() -> dict:
-    return json.loads(CONFIG_FILE.read_text())
+    return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
 
 
 def writable_files(config: dict) -> set[str]:
@@ -54,13 +54,25 @@ def markdown_files(folder: str, exclude: set[str]) -> list[str]:
     return files
 
 
+def own_hosts(port: int) -> set[str]:
+    return {f"{host}:{port}" for host in LOOPBACK_HOSTS}
+
+
 class Handler(SimpleHTTPRequestHandler):
+    def _from_this_server(self) -> bool:
+        hosts = own_hosts(self.server.server_port)
+        origin = self.headers.get("Origin")
+        return self.headers.get("Host") in hosts and (origin is None or urlparse(origin).netloc in hosts)
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        path = unquote(urlparse(self.path).path)
+        if self.headers.get("Host") not in own_hosts(self.server.server_port):
+            self.send_error(403)
+            return
         if path == "/":
             self.send_response(302)
             self.send_header("Location", PAGE_URL)
@@ -88,8 +100,7 @@ class Handler(SimpleHTTPRequestHandler):
         if url.path != "/api/save":
             self.send_error(404)
             return
-        origin = self.headers.get("Origin")
-        if origin is not None and urlparse(origin).hostname not in LOOPBACK_HOSTS:
+        if not self._from_this_server():
             self._send_json(403, b'{"error":"foreign origin"}')
             return
         relative = parse_qs(url.query).get("path", [""])[0]
