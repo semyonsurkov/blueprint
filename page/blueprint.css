@@ -171,3 +171,51 @@ details.doc[open] > summary.source { margin-bottom: 16px; }
 .sk_canvas .sk { border-radius: 12px; }
 
 :root[data-theme="dark"] .frame { filter: invert(1) hue-rotate(180deg); background: #fff; }
+
+.library {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  height: 100%;
+}
+
+.tree {
+  overflow: auto;
+  padding: 16px 8px 32px;
+  border-right: 1px solid var(--line);
+  background: var(--bg_soft);
+  font-size: 14px;
+}
+
+.tree ul { margin: 0; padding: 0 0 0 12px; list-style: none; }
+.tree > ul { padding-left: 0; }
+
+.tree summary {
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--mute);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tree a {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.tree a:hover, .tree summary:hover { background: var(--line); }
+.tree a[aria-current="page"] { background: var(--bg); font-weight: 600; }
+
+.adr_title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adr_status { flex: none; color: var(--mute); font-size: 12px; }
+
+.library .doc { overflow: auto; margin: 0; max-width: none; padding: 32px 48px 64px; }
+.library .doc > * { max-width: 980px; }
+
+.diagram { margin: 16px 0; overflow-x: auto; }
+.diagram svg { max-width: 100%; height: auto; }
+.diagram_error { border-left: 3px solid #d14343; }

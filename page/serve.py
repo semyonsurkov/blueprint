@@ -21,6 +21,31 @@ def writable_files(config: dict) -> set[str]:
     return {tab["file"] for tab in config["tabs"] if tab["type"] == "excalidraw"}
 
 
+def listed_folders(config: dict) -> dict[str, set[str]]:
+    folders = {}
+    for tab in config["tabs"]:
+        if tab["type"] in ("docs", "adr"):
+            folders[tab["dir"]] = set(tab.get("exclude", []))
+    return folders
+
+
+def hidden(name: str) -> bool:
+    return name.startswith(HIDDEN_PREFIXES)
+
+
+def markdown_files(folder: str, exclude: set[str]) -> list[str]:
+    root = (PROJECT_ROOT / folder).resolve()
+    if root != PROJECT_ROOT and PROJECT_ROOT not in root.parents:
+        return []
+    files = []
+    for path in sorted(root.rglob("*.md")):
+        parts = path.relative_to(root).parts
+        if any(hidden(part) or part in exclude for part in parts):
+            continue
+        files.append(path.relative_to(PROJECT_ROOT).as_posix())
+    return files
+
+
 class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
@@ -36,7 +61,18 @@ class Handler(SimpleHTTPRequestHandler):
         if any(part.startswith(HIDDEN_PREFIXES) for part in path.split("/")):
             self.send_error(404)
             return
+        if path == "/api/tree":
+            self._send_tree(parse_qs(urlparse(self.path).query).get("dir", [""])[0])
+            return
         super().do_GET()
+
+    def _send_tree(self, folder: str):
+        folders = listed_folders(read_config())
+        if folder not in folders:
+            self._send_json(403, b'{"error":"folder is not listed"}')
+            return
+        body = json.dumps(markdown_files(folder, folders[folder]), ensure_ascii=False)
+        self._send_json(200, body.encode())
 
     def do_POST(self):
         url = urlparse(self.path)

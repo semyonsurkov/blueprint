@@ -20,7 +20,9 @@ document.documentElement.dataset.theme = theme;
     "react-dom": "https://esm.sh/react-dom@19.3.0",
     "react-dom/client": "https://esm.sh/react-dom@19.3.0/client",
     "@excalidraw/excalidraw": "https://esm.sh/@excalidraw/excalidraw@0.18.1?external=react,react-dom",
-    "marked": "https://esm.sh/marked@18.0.14"
+    "marked": "https://esm.sh/marked@18.0.14",
+    "mermaid": "https://esm.sh/mermaid@12.1.0",
+    "@excalidraw/mermaid-to-excalidraw": "https://esm.sh/@excalidraw/mermaid-to-excalidraw@2.2.2"
   }
 }
 </script>
@@ -43,7 +45,7 @@ document.documentElement.dataset.theme = theme;
 try {
   const shell = JSON.parse(localStorage.getItem("blueprint_shell") || "null");
   if (shell) {
-    const id = location.hash.slice(1);
+    const id = decodeURIComponent(location.hash.slice(1)).split("/")[0];
     const tab = shell.tabs.find((item) => item.id === id) ?? shell.tabs[0];
     document.getElementById("title").textContent = shell.title;
     const nav = document.getElementById("tabs");
@@ -61,7 +63,7 @@ try {
       button.textContent = tab.docsLabel;
       slot.replaceWith(button);
     } else slot.remove();
-    if (tab.kind === "markdown") {
+    if (tab.kind === "markdown" || tab.kind === "docs" || tab.kind === "adr") {
       const page = document.getElementById("view").firstElementChild;
       page.className = "sk_page sk_text";
       page.innerHTML = '<i class="sk sk_heading"></i><i class="sk"></i><i class="sk"></i><i class="sk sk_short"></i><i class="sk"></i><i class="sk"></i><i class="sk sk_short"></i>';
