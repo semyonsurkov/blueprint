@@ -3,21 +3,45 @@
 <title>Каркасы</title>
 <link rel="stylesheet" href="wire.css">
 <style>
-html, body { margin: 0; background: #e6e6e6; font-family: system-ui; }
+html {
+  --board_bg: #e6e6e6;
+  --board_item_bg: #ffffff;
+  --board_item_line: #bbbbbb;
+  --board_caption: #444444;
+  --board_title: #222222;
+  --board_panel: #ffffff;
+  --board_panel_line: #c9c9c9;
+  --board_hover: #f1f3f5;
+  --board_text: #1a1a1a;
+  --board_mute: #5c5c5c;
+}
+html[data-theme="dark"] {
+  --board_bg: #111111;
+  --board_item_bg: #161616;
+  --board_item_line: #333333;
+  --board_caption: #9a9a9a;
+  --board_title: #ececec;
+  --board_panel: #161616;
+  --board_panel_line: #333333;
+  --board_hover: #232323;
+  --board_text: #ececec;
+  --board_mute: #9a9a9a;
+}
+html, body { margin: 0; background: var(--board_bg); font-family: system-ui; }
 html { scrollbar-width: none; }
 html::-webkit-scrollbar { display: none; }
 #space { position: relative; }
 #board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.item { position: absolute; border: 1px solid #bbb; background: #fff; }
-.caption { position: absolute; top: -28px; font-size: 14px; color: #444; white-space: nowrap; text-decoration: none; }
-.caption:hover { color: #000; text-decoration: underline; }
-.group { position: absolute; font-size: 64px; font-weight: 700; color: #222; white-space: nowrap; }
+.item { position: absolute; border: 1px solid var(--board_item_line); background: var(--board_item_bg); }
+.caption { position: absolute; top: -28px; font-size: 14px; color: var(--board_caption); white-space: nowrap; text-decoration: none; }
+.caption:hover { color: var(--board_text); text-decoration: underline; }
+.group { position: absolute; font-size: 64px; font-weight: 700; color: var(--board_title); white-space: nowrap; }
 .panning, .panning * { cursor: grab !important; user-select: none; }
 .dragging, .dragging * { cursor: grabbing !important; }
-.zoom { position: fixed; left: 16px; bottom: 16px; z-index: 1000; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #c9c9c9; border-radius: 10px; background: #fff; font: 13px system-ui; }
-.zoom button { min-width: 30px; height: 28px; border: 0; border-radius: 6px; background: none; color: #1a1a1a; font: inherit; cursor: pointer; }
-.zoom button:hover { background: #f1f3f5; }
-.zoom output { min-width: 44px; text-align: center; color: #5c5c5c; }
+.zoom { position: fixed; left: 16px; bottom: 16px; z-index: 1000; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--board_panel_line); border-radius: 10px; background: var(--board_panel); font: 13px system-ui; }
+.zoom button { min-width: 30px; height: 28px; border: 0; border-radius: 6px; background: none; color: var(--board_text); font: inherit; cursor: pointer; }
+.zoom button:hover { background: var(--board_hover); }
+.zoom output { min-width: 44px; text-align: center; color: var(--board_mute); }
 </style>
 <div id="space"><div id="board"></div></div>
 <script type="module">
