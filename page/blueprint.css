@@ -1,3 +1,5 @@
+:root { --header_h: 52px; }
+
 * { box-sizing: border-box; }
 
 html, body {

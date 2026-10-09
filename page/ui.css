@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --white: #ffffff;
   --gray_96: #f6f6f4;
   --gray_93: #ececec;
@@ -67,6 +68,7 @@
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: var(--gray_9);
   --surface: var(--gray_9);
   --surface_soft: var(--gray_14);
