@@ -3,29 +3,42 @@ const FILE = `${FOLDER}/FEEDBACK.md`;
 const ITEM = /^- \[( |x)\] (\d+)\. `([^`]+)` — (.*)$/;
 const SCREEN_HEADING = /^## (\S+\.html)/;
 
+const ACCENT = "#e8590c";
 const STYLE = `
-.fb_bar { position: fixed; right: 16px; bottom: 16px; z-index: 1000; display: flex; gap: 8px; font: 14px system-ui; }
-.fb_bar button, .fb_pop button { border: 1px solid #1a1a1a; border-radius: 8px; background: #fff; color: #1a1a1a; padding: 8px 12px; font: inherit; cursor: pointer; }
-.fb_bar button[aria-pressed="true"] { background: #1a1a1a; color: #fff; }
-.fb_mode .screen * { cursor: crosshair; }
-.fb_hover { outline: 2px solid #e8590c !important; outline-offset: 1px; }
-.fb_flash { outline: 3px solid #e8590c !important; outline-offset: 2px; }
+.fb_ui { font: 14px/1.4 system-ui, -apple-system, sans-serif; color: #1a1a1a; }
+:root[data-fb-dark] .fb_ui, :root[data-fb-dark] .fb_pin { filter: invert(1) hue-rotate(180deg); }
+.fb_bar { position: fixed; right: 16px; bottom: 16px; z-index: 1000; display: flex; gap: 6px; padding: 4px; border-radius: 12px; background: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.14); }
+.fb_ui button { border: 0; border-radius: 8px; background: none; color: inherit; padding: 7px 12px; font: inherit; cursor: pointer; }
+.fb_ui button:hover { background: #f1f3f5; }
+.fb_bar button[aria-pressed="true"] { background: ${ACCENT}; color: #fff; }
+.fb_ui kbd { margin-left: 6px; padding: 0 5px; border-radius: 4px; background: rgba(0,0,0,.08); font: 11px ui-monospace, monospace; }
+.fb_mode .screen *, .fb_mode .caption { cursor: crosshair !important; }
+.fb_hover { outline: 2px solid ${ACCENT} !important; outline-offset: 1px; }
+.fb_flash { outline: 3px solid ${ACCENT} !important; outline-offset: 2px; }
 .fb_layer { position: absolute; inset: 0; pointer-events: none; z-index: 50; }
-.fb_pin { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #e8590c; color: #fff; font: 600 12px/22px system-ui; text-align: center; box-shadow: 0 0 0 2px #fff; pointer-events: auto; cursor: pointer; }
-.fb_pin[data-done] { background: #868e96; }
-.fb_pop { position: fixed; z-index: 1001; width: 320px; padding: 12px; border: 1px solid #1a1a1a; border-radius: 10px; background: #fff; display: flex; flex-direction: column; gap: 8px; font: 14px system-ui; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
-.fb_pop textarea { min-height: 80px; resize: vertical; font: inherit; padding: 8px; border: 1px solid #c9c9c9; border-radius: 6px; }
-.fb_pop .fb_path { color: #5c5c5c; font: 12px ui-monospace, monospace; word-break: break-all; }
-.fb_panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 999; width: 380px; overflow: auto; padding: 16px 16px 72px; background: #fff; border-left: 1px solid #c9c9c9; font: 14px system-ui; color: #1a1a1a; box-shadow: -8px 0 24px rgba(0,0,0,.08); }
+.fb_pin { position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50% 50% 50% 0; background: ${ACCENT}; color: #fff; font: 600 12px/24px system-ui; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.25); pointer-events: auto; cursor: pointer; }
+.fb_pin[data-done] { background: #adb5bd; }
+.fb_pop { position: fixed; z-index: 1001; width: 320px; padding: 12px; border-radius: 12px; background: #fff; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.22); }
+.fb_pop_head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.fb_pop textarea { min-height: 84px; resize: vertical; font: inherit; padding: 8px 10px; border: 1px solid #dee2e6; border-radius: 8px; outline: none; }
+.fb_pop textarea:focus { border-color: ${ACCENT}; }
+.fb_pop .fb_path { color: #868e96; font: 11px ui-monospace, monospace; word-break: break-all; }
+.fb_actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.fb_actions .fb_grow { margin-right: auto; }
+.fb_ui button.fb_primary { background: ${ACCENT}; color: #fff; }
+.fb_ui button.fb_primary:hover { background: #d9480f; }
+.fb_ui button.fb_danger { color: #c92a2a; }
+.fb_panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 999; width: 380px; overflow: auto; padding: 16px 16px 80px; background: #fff; box-shadow: -8px 0 24px rgba(0,0,0,.12); }
 .fb_panel[hidden] { display: none; }
-.fb_panel h3 { margin: 16px 0 8px; font-size: 14px; }
+.fb_panel h2 { margin: 0 0 4px; font-size: 16px; }
+.fb_panel h3 { margin: 16px 0 6px; font-size: 13px; color: #868e96; }
 .fb_note { display: flex; gap: 8px; align-items: flex-start; padding: 8px; border-radius: 8px; cursor: pointer; }
 .fb_note:hover { background: #f1f3f5; }
-.fb_note[data-done] .fb_text { color: #868e96; text-decoration: line-through; }
-.fb_num { flex: none; width: 22px; height: 22px; border-radius: 50%; background: #e8590c; color: #fff; font: 600 12px/22px system-ui; text-align: center; }
-.fb_note[data-done] .fb_num { background: #868e96; }
+.fb_note[data-done] .fb_text { color: #adb5bd; text-decoration: line-through; }
+.fb_num { flex: none; width: 22px; height: 22px; border-radius: 50% 50% 50% 0; background: ${ACCENT}; color: #fff; font: 600 12px/22px system-ui; text-align: center; }
+.fb_note[data-done] .fb_num { background: #adb5bd; }
 .fb_text { flex: 1; min-width: 0; }
-.fb_note button { border: 0; background: none; cursor: pointer; color: #5c5c5c; font: inherit; }
+.fb_hint { color: #868e96; font-size: 13px; }
 `;
 
 const notes = [];
@@ -86,7 +99,12 @@ const save = async () => {
   render();
 };
 
-const target = (note) => screenRoots().get(note.screen)?.querySelector(note.selector) ?? null;
+const SCREEN = ":scope";
+const resolve = (root, selector) => (selector === SCREEN ? root : root.querySelector(selector));
+const target = (note) => {
+  const root = screenRoots().get(note.screen);
+  return root ? resolve(root, note.selector) : null;
+};
 
 const flash = (element) => {
   element.classList.add("fb_flash");
@@ -103,17 +121,22 @@ const renderPins = () => {
     const rootBox = root.getBoundingClientRect();
     const scale = rootBox.width / root.offsetWidth || 1;
     for (const note of notes.filter((item) => item.screen === screen)) {
-      const element = root.querySelector(note.selector);
+      const element = resolve(root, note.selector);
       if (!element) continue;
       const box = element.getBoundingClientRect();
+      const whole = element === root;
       const pin = document.createElement("div");
       pin.className = "fb_pin";
       pin.textContent = note.id;
       pin.title = note.text;
       if (note.done) pin.dataset.done = "";
-      pin.style.left = `${(box.right - rootBox.left) / scale}px`;
-      pin.style.top = `${(box.top - rootBox.top) / scale}px`;
-      pin.addEventListener("click", () => { openPanel(true); flash(element); });
+      pin.style.left = `${whole ? 16 : (box.right - rootBox.left) / scale}px`;
+      pin.style.top = `${whole ? 16 : (box.top - rootBox.top) / scale}px`;
+      pin.addEventListener("click", (event) => {
+        event.stopPropagation();
+        flash(element);
+        showNote(note, event.clientX + 12, event.clientY + 12);
+      });
       layer.append(pin);
     }
   }
@@ -130,7 +153,7 @@ const renderPanel = () => {
   heading.style.margin = "0";
   panel.append(heading);
   if (!notes.length) {
-    panel.append(Object.assign(document.createElement("p"), { textContent: "Пока пусто. Включите «Оставить отзыв» и щёлкните по элементу экрана." }));
+    panel.append(Object.assign(document.createElement("p"), { className: "fb_hint", textContent: "Пока пусто. Нажмите C или «Оставить отзыв» и щёлкните по элементу экрана. Щелчок по названию экрана оставляет отзыв на весь экран." }));
   }
   for (const screen of new Set(notes.map((note) => note.screen))) {
     panel.append(Object.assign(document.createElement("h3"), { textContent: titles.get(screen) ?? screen }));
@@ -155,6 +178,10 @@ const renderPanel = () => {
         element.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
         flash(element);
       });
+      row.addEventListener("dblclick", () => {
+        const box = row.getBoundingClientRect();
+        showNote(note, box.left - 340, box.top);
+      });
       panel.append(row);
     }
   }
@@ -172,15 +199,20 @@ const openPanel = (open) => {
   counter.setAttribute("aria-pressed", String(open));
 };
 
-const popup = (element, screen, root, x, y) => {
+const placePopup = (box, x, y) => {
   document.querySelector(".fb_pop")?.remove();
+  box.className = "fb_pop fb_ui";
+  box.style.left = `${Math.max(8, Math.min(x, innerWidth - 336))}px`;
+  box.style.top = `${Math.max(8, Math.min(y, innerHeight - 260))}px`;
+  document.body.append(box);
+};
+
+const popup = (screen, selector, x, y) => {
   const box = document.createElement("form");
-  box.className = "fb_pop";
-  box.style.left = `${Math.min(x, innerWidth - 340)}px`;
-  box.style.top = `${Math.min(y, innerHeight - 200)}px`;
-  const selector = selectorOf(element, root);
-  box.innerHTML = `<div class="fb_path"></div><textarea placeholder="Что не так с этим элементом?"></textarea><div style="display:flex;gap:8px;justify-content:flex-end"><button type="button">Отмена</button><button type="submit">Сохранить</button></div>`;
-  box.querySelector(".fb_path").textContent = `${screen} ${selector}`;
+  const whole = selector === SCREEN;
+  box.innerHTML = `<div class="fb_pop_head"></div><textarea placeholder="Что хочется поменять?"></textarea><div class="fb_path"></div><div class="fb_actions"><button type="button">Отмена</button><button type="submit" class="fb_primary">Сохранить</button></div>`;
+  box.querySelector(".fb_pop_head").textContent = whole ? `Весь экран «${titles.get(screen) ?? screen}»` : (titles.get(screen) ?? screen);
+  box.querySelector(".fb_path").textContent = whole ? screen : `${screen} ${selector}`;
   box.querySelector("button[type=button]").addEventListener("click", () => box.remove());
   box.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -190,13 +222,44 @@ const popup = (element, screen, root, x, y) => {
     box.remove();
     save();
   });
-  document.body.append(box);
+  placePopup(box, x, y);
   box.querySelector("textarea").focus();
+};
+
+const showNote = (note, x, y) => {
+  const box = document.createElement("form");
+  box.innerHTML = `<div class="fb_pop_head"><span class="fb_num"></span><span></span></div><textarea></textarea><div class="fb_path"></div><div class="fb_actions"><button type="button" class="fb_danger fb_grow">Удалить</button><button type="button" data-done></button><button type="submit" class="fb_primary">Сохранить</button></div>`;
+  box.querySelector(".fb_num").textContent = note.id;
+  box.querySelector(".fb_pop_head span:last-child").textContent = titles.get(note.screen) ?? note.screen;
+  box.querySelector("textarea").value = note.text;
+  box.querySelector(".fb_path").textContent = `${note.screen} ${note.selector}`;
+  const done = box.querySelector("[data-done]");
+  done.textContent = note.done ? "Вернуть в работу" : "Выполнено";
+  done.addEventListener("click", () => { note.done = !note.done; box.remove(); save(); });
+  box.querySelector(".fb_danger").addEventListener("click", () => {
+    notes.splice(notes.indexOf(note), 1);
+    box.remove();
+    save();
+  });
+  box.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const text = box.querySelector("textarea").value.replace(/\s+/g, " ").trim();
+    if (text) note.text = text;
+    box.remove();
+    save();
+  });
+  placePopup(box, x, y);
 };
 
 const locate = (element) => {
   for (const [screen, root] of screenRoots()) if (root.contains(element) && element !== root) return { screen, root };
   return null;
+};
+
+const captionScreen = (element) => {
+  const caption = element.closest(".caption");
+  const holder = caption?.parentElement;
+  return holder?.id?.startsWith("screen_") ? `${holder.id.slice(7)}.html` : null;
 };
 
 const toggleMode = (button) => {
@@ -214,22 +277,39 @@ addEventListener("mouseover", (event) => {
 });
 
 addEventListener("click", (event) => {
-  if (!mode || event.target.closest(".fb_pop, .fb_bar, .fb_panel, .fb_pin")) return;
-  const found = locate(event.target);
-  if (!found) return;
+  if (!mode || event.target.closest(".fb_ui, .fb_pin")) return;
+  const whole = captionScreen(event.target);
+  const found = whole ? null : locate(event.target);
+  if (!whole && !found) return;
   event.preventDefault();
   event.stopPropagation();
   event.target.classList.remove("fb_hover");
-  popup(event.target, found.screen, found.root, event.clientX + 12, event.clientY + 12);
+  if (whole) popup(whole, SCREEN, event.clientX + 12, event.clientY + 12);
+  else popup(found.screen, selectorOf(event.target, found.root), event.clientX + 12, event.clientY + 12);
 }, true);
 
-addEventListener("keydown", (event) => { if (event.key === "Escape") document.querySelector(".fb_pop")?.remove(); });
+addEventListener("keydown", (event) => {
+  if (event.target.closest?.("input, textarea, [contenteditable]")) return;
+  if (event.key === "Escape") {
+    if (document.querySelector(".fb_pop")) document.querySelector(".fb_pop").remove();
+    else if (mode) toggleMode(modeButton);
+  } else if (event.key.toLowerCase() === "c" || event.key.toLowerCase() === "с") {
+    if (!event.metaKey && !event.ctrlKey && !event.altKey) toggleMode(modeButton);
+  }
+});
 addEventListener("resize", renderPins);
 
 document.head.append(Object.assign(document.createElement("style"), { textContent: STYLE }));
 const bar = document.createElement("div");
-bar.className = "fb_bar";
-const modeButton = Object.assign(document.createElement("button"), { type: "button", textContent: "Оставить отзыв" });
+bar.className = "fb_bar fb_ui";
+panel.classList.add("fb_ui");
+try {
+  if (window.parent !== window && window.parent.document.documentElement.dataset.theme === "dark") {
+    document.documentElement.dataset.fbDark = "";
+  }
+} catch {}
+const modeButton = Object.assign(document.createElement("button"), { type: "button" });
+modeButton.innerHTML = "Оставить отзыв<kbd>C</kbd>";
 modeButton.setAttribute("aria-pressed", "false");
 modeButton.addEventListener("click", () => toggleMode(modeButton));
 counter.type = "button";
