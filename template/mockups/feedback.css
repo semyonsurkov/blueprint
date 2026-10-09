@@ -1,3 +1,15 @@
+:root {
+  --fb_mark: #5f7fc0;
+  --fb_mark_fill: rgba(95, 127, 192, 0.14);
+  --fb_mark_text: #ffffff;
+}
+
+:root[data-theme="dark"] {
+  --fb_mark: #8eaae6;
+  --fb_mark_fill: rgba(142, 170, 230, 0.2);
+  --fb_mark_text: #111111;
+}
+
 .fb_ui {
   font-family: var(--font_sans);
   font-size: var(--font_size_body);
@@ -22,8 +34,14 @@
   cursor: crosshair !important;
 }
 
-.fb_hover { outline: 2px dashed var(--gray_10) !important; outline-offset: 2px; }
-.fb_flash { outline: 2px solid var(--gray_10) !important; outline-offset: 3px; }
+.fb_hover,
+.fb_flash {
+  outline: 2px solid var(--fb_mark) !important;
+  outline-offset: 2px;
+  background-image: linear-gradient(var(--fb_mark_fill), var(--fb_mark_fill)) !important;
+}
+
+.fb_flash { outline-width: 3px !important; }
 
 .fb_layer {
   position: absolute;
@@ -41,8 +59,8 @@
   margin: -12px 0 0 -12px;
   border: 2px solid var(--surface);
   border-radius: 50% 50% 50% 0;
-  background: var(--text);
-  color: var(--surface);
+  background: var(--fb_mark);
+  color: var(--fb_mark_text);
   font: var(--font_weight_semibold) var(--font_size_small) / 20px var(--font_sans);
   text-align: center;
   box-shadow: var(--shadow_sm);
@@ -78,8 +96,8 @@
   width: 22px;
   height: 22px;
   border-radius: 50% 50% 50% 0;
-  background: var(--text);
-  color: var(--surface);
+  background: var(--fb_mark);
+  color: var(--fb_mark_text);
   font: var(--font_weight_semibold) var(--font_size_small) / 22px var(--font_sans);
   text-align: center;
 }
