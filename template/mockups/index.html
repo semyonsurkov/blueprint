@@ -4,6 +4,8 @@
 <link rel="stylesheet" href="wire.css">
 <style>
 html, body { margin: 0; background: #e6e6e6; font-family: system-ui; }
+html { scrollbar-width: none; }
+html::-webkit-scrollbar { display: none; }
 #space { position: relative; }
 #board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .item { position: absolute; border: 1px solid #bbb; background: #fff; }
@@ -68,15 +70,15 @@ for (const [name, list] of groups) {
     holder.innerHTML = `<a class="caption" href="${screen.file}?annotate">${screen.title}</a>`;
     board.append(holder);
     pending.push(loadScreen(holder, screen.file));
+    content.width = Math.max(content.width, left + width);
     left += width + GAP;
-    content.width = Math.max(content.width, left);
     rowHeight = Math.max(rowHeight, height);
     column++;
   }
   top += rowHeight + GAP * 2;
 }
 content.height = top;
-if (!saved) scale = Math.min(FIT_MAX_SCALE, Math.max(MIN_SCALE, (innerWidth - PAD_X * 2) / content.width));
+if (!saved) scale = Math.min(FIT_MAX_SCALE, Math.max(MIN_SCALE, (document.documentElement.clientWidth - PAD_X * 2) / content.width));
 apply();
 if (saved) scrollTo(saved.scrollX, saved.scrollY);
 await Promise.all(pending);
@@ -102,7 +104,7 @@ zoom.addEventListener("click", (event) => {
   const button = event.target.closest("button");
   if (!button) return;
   if (button.dataset.fit !== undefined) {
-    zoomTo(Math.min(FIT_MAX_SCALE, Math.max(MIN_SCALE, (innerWidth - PAD_X * 2) / content.width)), 0, 0);
+    zoomTo(Math.min(FIT_MAX_SCALE, Math.max(MIN_SCALE, (document.documentElement.clientWidth - PAD_X * 2) / content.width)), 0, 0);
     scrollTo(0, 0);
   } else zoomTo(scale * Number(button.dataset.step));
 });
