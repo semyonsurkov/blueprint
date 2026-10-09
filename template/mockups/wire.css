@@ -48,6 +48,11 @@ body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 .check { border-radius: 6px; border: 1px solid var(--ink); flex-shrink: 0; }
 .dot { border-radius: 50%; border: 2px solid var(--ink); }
 
+/* Иконки Lucide: wire.js вставляет svg в элемент с data-icon */
+[data-icon] { display: inline-flex; align-items: center; justify-content: center; color: var(--ink); }
+[data-icon] > svg { width: var(--icon_size, 16px); height: var(--icon_size, 16px); flex-shrink: 0; }
+[data-icon-missing] { outline: 1px dashed var(--mute); }
+
 /* Составные: набор утилит под одним именем */
 .label { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 12px; color: var(--mute); }
 .label_sm { color: var(--ink); font-weight: 400; line-height: 1.3; font-size: 11px; color: var(--mute); }

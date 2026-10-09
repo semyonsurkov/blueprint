@@ -38,6 +38,20 @@ for (let node; (node = document.querySelector("[data-repeat]"));) {
   [node, ...copies].forEach((item, index) => { item.dataset.copy = `${index + 1}/${count}`; });
 }
 
+const ICONS = "https://esm.sh/lucide-static@1.51.0/icons";
+const iconCache = new Map();
+const loadIcon = (name) => {
+  if (!iconCache.has(name)) {
+    iconCache.set(name, fetch(`${ICONS}/${name}.svg`).then((response) => (response.ok ? response.text() : null)).catch(() => null));
+  }
+  return iconCache.get(name);
+};
+await Promise.all([...document.querySelectorAll("[data-icon]")].map(async (node) => {
+  const svg = await loadIcon(node.dataset.icon);
+  if (svg) node.insertAdjacentHTML("afterbegin", svg.replace(/<!--.*?-->/s, ""));
+  else node.dataset.iconMissing = "";
+}));
+
 const annotate = new URLSearchParams(location.search).has("annotate");
 if (window.WIRE_ANNOTATE || annotate || window.top === window) {
   import("./feedback.js");
