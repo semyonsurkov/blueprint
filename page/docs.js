@@ -1,4 +1,5 @@
 import { iconElement } from "./icons.js";
+import { resizableSidebar } from "./sidebar.js";
 import { fetchText, handleLinks, markdown, renderMermaid, scrollToAnchor, sourceLabel } from "./markdown.js";
 
 const STATUS_LINE = /^\s*(?:[-*]\s+)?(?:\*\*)?(?:Статус|Status)(?:\*\*)?\s*[:：]\s*(?:\*\*)?\s*(.+?)\s*$/im;
@@ -131,6 +132,7 @@ const renderLibrary = (buildNav) => async (tab, ready, ctx, initialPath) => {
   article.className = "doc";
   layout.append(nav, article);
   ctx.view.append(layout);
+  resizableSidebar(layout);
   const files = await fetchTree(tab.dir);
   const { node, fallback, decorate } = await buildNav(tab, files);
   nav.append(node);
