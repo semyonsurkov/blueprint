@@ -5,7 +5,13 @@ import { marked } from "marked";
 import { gfmHeadingId } from "marked-gfm-heading-id";
 import DOMPurify from "dompurify";
 
-marked.use(gfmHeadingId());
+const HEADING_ID_PREFIX = "user-content-";
+const FORBIDDEN_TAGS = ["style", "form", "button", "textarea", "select", "option"];
+
+marked.use(gfmHeadingId({ prefix: HEADING_ID_PREFIX }));
+DOMPurify.addHook("uponSanitizeElement", (node, data) => {
+  if (data.tagName === "input" && node.getAttribute("type") !== "checkbox") node.remove();
+});
 
 const SAVE_DELAY_MS = 800;
 const THEME_KEY = "blueprint_theme";
@@ -20,11 +26,12 @@ const currentTheme = () => document.documentElement.dataset.theme;
 
 const themeToggle = document.getElementById("theme_toggle");
 
+const fileUrl = (path) => `/${path.split("/").map(encodeURIComponent).join("/")}`;
+
 const fetchText = async (path) => {
-  const response = await fetch(`/${path}`);
+  const response = await fetch(fileUrl(path));
   return response.ok ? response.text() : null;
 };
-
 
 const resolvePath = (from, href) => {
   const parts = from.split("/").slice(0, -1);
@@ -44,10 +51,10 @@ const markdown = (text, path) => {
     body.textContent = MISSING_FILE;
     return body;
   }
-  body.innerHTML = DOMPurify.sanitize(marked.parse(text));
+  body.innerHTML = DOMPurify.sanitize(marked.parse(text), { FORBID_TAGS: FORBIDDEN_TAGS });
   for (const image of body.querySelectorAll("img[src]")) {
     const src = image.getAttribute("src");
-    if (!/^([a-z]+:|\/|#)/i.test(src)) image.src = `/${resolvePath(path, src)}`;
+    if (!/^([a-z]+:|\/|#)/i.test(src)) image.src = fileUrl(resolvePath(path, decodeHref(src)));
   }
   return body;
 };
@@ -68,7 +75,9 @@ const decodeHref = (value) => {
 };
 
 const scrollToAnchor = (container, anchor) => {
-  container.querySelector(`[id="${CSS.escape(anchor)}"]`)?.scrollIntoView({ block: "start" });
+  const target = container.querySelector(`[id="${CSS.escape(HEADING_ID_PREFIX + anchor)}"]`)
+    ?? container.querySelector(`[id="${CSS.escape(anchor)}"]`);
+  target?.scrollIntoView({ block: "start" });
 };
 
 const keepAnchorsInside = (container) => {
@@ -110,7 +119,6 @@ const renderMermaid = async (container) => {
     }
   }
 };
-
 
 const showDocument = async (article, path, onNavigate) => {
   const text = await fetchText(path);
@@ -168,7 +176,9 @@ const treeNodes = (node, open, prefix = "") => {
     const path = `${prefix}${name}/`;
     folder.dataset.folder = path;
     folder.open = open.has(path);
-    folder.innerHTML = `<summary>${name}</summary>`;
+    const summary = document.createElement("summary");
+    summary.textContent = name;
+    folder.append(summary);
     folder.append(treeNodes(child, open, path));
     item.append(folder);
     list.append(item);
@@ -399,11 +409,7 @@ const textTabs = new Set(["markdown", "docs", "adr"]);
 
 const parseHash = () => {
   const [id, ...rest] = location.hash.slice(1).split("/");
-  try {
-    return { id: decodeURIComponent(id), path: rest.map(decodeURIComponent).join("/") };
-  } catch {
-    return { id, path: "" };
-  }
+  return { id: decodeHref(id), path: rest.map(decodeHref).join("/") };
 };
 
 const open = async (config, id, path) => {
