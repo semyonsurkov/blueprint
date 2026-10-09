@@ -1,5 +1,8 @@
 import json
+import os
+import shutil
 import sys
+import tempfile
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -10,10 +13,11 @@ CONFIG_FILE = Path(__file__).parent / "blueprint.json"
 HOST = "127.0.0.1"
 DEFAULT_PORT = 5190
 PAGE_URL = "/blueprint/"
-HIDDEN_PREFIXES = (".git", ".env")
+SKIPPED_FOLDERS = {"node_modules", "vendor", "dist", "build", "__pycache__", "venv", "site-packages", "blueprint"}
 LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "[::1]")
 FEEDBACK_NAME = "FEEDBACK.md"
 MAX_BODY_BYTES = 20 * 1024 * 1024
+PENDING_CONNECTIONS = 256
 
 
 def read_config() -> dict:
@@ -21,11 +25,11 @@ def read_config() -> dict:
 
 
 def writable_files(config: dict) -> set[str]:
-    schemes = {tab["file"] for tab in config["tabs"] if tab["type"] == "excalidraw"}
+    schemes = {tab["file"] for tab in config["tabs"] if tab.get("type") == "excalidraw" and "file" in tab}
     feedback = {
         (Path(tab["src"]).parent / FEEDBACK_NAME).as_posix()
         for tab in config["tabs"]
-        if tab["type"] == "frame" and "src" in tab
+        if tab.get("type") == "frame" and "src" in tab
     }
     return schemes | feedback
 
@@ -33,13 +37,17 @@ def writable_files(config: dict) -> set[str]:
 def listed_folders(config: dict) -> dict[str, set[str]]:
     folders = {}
     for tab in config["tabs"]:
-        if tab["type"] in ("docs", "adr"):
+        if tab.get("type") in ("docs", "adr") and "dir" in tab:
             folders[tab["dir"]] = set(tab.get("exclude", []))
     return folders
 
 
 def hidden(name: str) -> bool:
-    return name.lower().startswith(HIDDEN_PREFIXES)
+    return name.startswith(".")
+
+
+def skipped(name: str) -> bool:
+    return hidden(name) or name in SKIPPED_FOLDERS
 
 
 def markdown_files(folder: str, exclude: set[str]) -> list[str]:
@@ -47,12 +55,27 @@ def markdown_files(folder: str, exclude: set[str]) -> list[str]:
     if root != PROJECT_ROOT and PROJECT_ROOT not in root.parents:
         return []
     files = []
-    for path in sorted(root.rglob("*.md")):
-        parts = path.relative_to(root).parts
-        if any(hidden(part) or part in exclude for part in parts):
-            continue
-        files.append(path.relative_to(PROJECT_ROOT).as_posix())
-    return files
+    for folder_path, folders, names in os.walk(root):
+        folders[:] = sorted(name for name in folders if not skipped(name) and name not in exclude)
+        for name in sorted(names):
+            if name.endswith(".md") and not hidden(name):
+                files.append((Path(folder_path) / name).relative_to(PROJECT_ROOT).as_posix())
+    return sorted(files)
+
+
+def write_atomically(target: Path, body: bytes) -> None:
+    descriptor, temporary = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(body)
+        if target.exists():
+            shutil.copymode(target, temporary)
+        else:
+            os.chmod(temporary, 0o644)
+        os.replace(temporary, target)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
 
 
 def own_hosts(port: int) -> set[str]:
@@ -60,6 +83,8 @@ def own_hosts(port: int) -> set[str]:
 
 
 class Handler(SimpleHTTPRequestHandler):
+    extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".mjs": "text/javascript", ".js": "text/javascript"}
+
     def _own_host(self) -> bool:
         return self.headers.get("Host", "").lower() in own_hosts(self.server.server_port)
 
@@ -119,7 +144,7 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(403, b'{"error":"foreign origin"}')
             return
         length = self.headers.get("Content-Length", "")
-        if not length.isdigit() or int(length) > MAX_BODY_BYTES:
+        if not (length.isascii() and length.isdigit()) or int(length) > MAX_BODY_BYTES:
             self._send_json(413, b'{"error":"body is too large or has no length"}')
             return
         body = self.rfile.read(int(length))
@@ -132,9 +157,13 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(403, b'{"error":"path is outside the project"}')
             return
         if target.suffix == ".excalidraw":
-            json.loads(body)
+            try:
+                json.loads(body)
+            except ValueError:
+                self._send_json(400, b'{"error":"body is not a valid scheme"}')
+                return
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(body)
+        write_atomically(target, body)
         self._send_json(200, b'{"ok":true}')
 
     def _send_json(self, status: int, body: bytes):
@@ -147,11 +176,16 @@ class Handler(SimpleHTTPRequestHandler):
         sys.stderr.write("%s %s\n" % (self.command, self.path))
 
 
+class Server(ThreadingHTTPServer):
+    request_queue_size = PENDING_CONNECTIONS
+    daemon_threads = True
+
+
 if __name__ == "__main__":
     port = int(read_config().get("port", DEFAULT_PORT))
     handler = partial(Handler, directory=str(PROJECT_ROOT))
     try:
-        server = ThreadingHTTPServer((HOST, port), handler)
+        server = Server((HOST, port), handler)
     except OSError as error:
         sys.exit(f"blueprint: порт {port} недоступен ({error.strerror}); задай другой в blueprint/blueprint.json")
     print(f"blueprint: http://localhost:{port}", flush=True)
