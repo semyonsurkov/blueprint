@@ -273,7 +273,7 @@ bar.className = "fb_bar fb_ui ui_toolbar";
 panel.classList.add("fb_ui");
 try {
   if (window.parent !== window) {
-    document.documentElement.dataset.framed = "";
+    if (window.frameElement?.dataset.themeMode !== "project") document.documentElement.dataset.framed = "";
     uiTheme = window.parent.document.documentElement.dataset.theme ?? "light";
   }
 } catch {}
