@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 import re
 from html.parser import HTMLParser
@@ -19,12 +20,14 @@ SIZE_PROPERTIES = {
 }
 COLOR_LITERAL = re.compile(r"#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(")
 CLASS_RULE = re.compile(r"\.([A-Za-z_][\w-]*)")
-WIRE_BLOCK = re.compile(r"dataset\.wire === \"([\w-]+)\"")
+RENDER_CALL = re.compile(r"renderScreens\(\s*\{")
+IDENTIFIER = re.compile(r"^[A-Za-z_]\w*$")
 SCREEN_TEMPLATE = """<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <title>{title}</title>
+<script src="/blueprint/theme.js"></script>
 <link rel="stylesheet" href="wire.css">
 </head>
 <body>
@@ -67,10 +70,10 @@ class ScreenParser(HTMLParser):
             for declaration in filter(None, (part.strip() for part in style.split(";"))):
                 prop, _, value = declaration.partition(":")
                 prop = prop.strip().lower()
-                if prop not in SIZE_PROPERTIES:
-                    self.problems.append((line, f"в style можно только размеры и позицию, «{prop}» вынеси в класс {STYLES}"))
-                elif COLOR_LITERAL.search(value):
+                if COLOR_LITERAL.search(value):
                     self.problems.append((line, f"цвет в style «{declaration}»: используй переменную из {STYLES}"))
+                elif prop not in SIZE_PROPERTIES:
+                    self.problems.append((line, f"в style можно только размеры и позицию, «{prop}» вынеси в класс {STYLES}"))
         wire = values.get("data-wire")
         if wire is not None and wire not in self.blocks:
             known = ", ".join(sorted(self.blocks)) or "нет"
@@ -82,23 +85,50 @@ class ScreenParser(HTMLParser):
 
 def mockups_dir(root: Path, config: dict) -> Path | None:
     for tab in config.get("tabs", []):
-        if tab.get("type") == "frame" and tab.get("src", "").endswith(f"/{BOARD}"):
+        if tab.get("type") == "frame" and Path(tab.get("src", "")).name == BOARD:
             return root / Path(tab["src"]).parent
     return None
 
 
 def defined_classes(folder: Path) -> set[str]:
     styles = folder / STYLES
-    return set(CLASS_RULE.findall(styles.read_text())) if styles.is_file() else set()
+    if not styles.is_file():
+        return set()
+    text = re.sub(r"url\([^)]*\)", "", styles.read_text(encoding="utf-8"))
+    return set(CLASS_RULE.findall(text))
 
 
 def wire_blocks(folder: Path) -> set[str]:
     script = folder / SCRIPT
-    return set(WIRE_BLOCK.findall(script.read_text())) if script.is_file() else set()
+    if not script.is_file():
+        return set()
+    text = script.read_text(encoding="utf-8")
+    call = RENDER_CALL.search(text)
+    if not call:
+        return set()
+    keys, depth, part = [], 0, ""
+    for char in text[call.end():]:
+        if char in "{([":
+            depth += 1
+        elif char in "})]":
+            if depth == 0:
+                break
+            depth -= 1
+        if char == "," and depth == 0:
+            keys.append(part)
+            part = ""
+        elif depth == 0:
+            part += char
+    keys.append(part)
+    names = (key.split(":")[0].strip() for key in keys)
+    return {name for name in names if IDENTIFIER.match(name)}
 
 
 def load_manifest(folder: Path) -> dict:
-    return json.loads((folder / MANIFEST).read_text())
+    path = folder / MANIFEST
+    if not path.is_file():
+        raise FileNotFoundError(MANIFEST)
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def check(folder: Path) -> list[Problem]:
@@ -132,7 +162,7 @@ def check(folder: Path) -> list[Problem]:
         if path.name not in listed:
             problems.append(Problem(path.name, 0, f"экрана нет в {MANIFEST}: добавь запись или удали файл"))
         parser = ScreenParser(classes, blocks)
-        parser.feed(path.read_text())
+        parser.feed(path.read_text(encoding="utf-8"))
         problems.extend(Problem(path.name, line, message) for line, message in parser.problems)
     problems.extend(check_feedback(folder, listed))
     return problems
@@ -143,12 +173,12 @@ def check_feedback(folder: Path, listed: set[str]) -> list[Problem]:
     if not path.is_file():
         return []
     problems = []
-    for number, line in enumerate(path.read_text().splitlines(), start=1):
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         heading = FEEDBACK_SCREEN.match(line)
         if heading and heading[1] not in listed:
-            problems.append(Problem(FEEDBACK, number, f"отзывы к экрану {heading[1]}, которого нет в {MANIFEST}"))
+            problems.append(Problem(FEEDBACK, number, f"комментарии к экрану {heading[1]}, которого нет в {MANIFEST}"))
         if line.startswith("- ") and not FEEDBACK_ITEM.match(line):
-            problems.append(Problem(FEEDBACK, number, "пункт отзыва должен быть вида «- [ ] N. `путь` — текст»"))
+            problems.append(Problem(FEEDBACK, number, "пункт комментария должен быть вида «- [ ] N. `путь` — текст»"))
     return problems
 
 
@@ -158,11 +188,18 @@ def new_screen(folder: Path, name: str, title: str, group: str, size: tuple[int,
     target = folder / f"{name}.html"
     if target.exists():
         raise ValueError(f"{target.name} уже есть")
-    manifest = load_manifest(folder)
+    try:
+        manifest = load_manifest(folder)
+    except FileNotFoundError:
+        raise ValueError(f"{MANIFEST} не найден в {folder}: макеты заведены не через blueprint init") from None
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{MANIFEST} не читается как JSON, строка {error.lineno}: {error.msg}") from None
+    if any(screen.get("file") == target.name for screen in manifest.get("screens", [])):
+        raise ValueError(f"{target.name} уже записан в {MANIFEST}, хотя файла нет: удали запись или создай файл")
     width, height = size
-    target.write_text(SCREEN_TEMPLATE.format(title=title, width=width, height=height))
+    target.write_text(SCREEN_TEMPLATE.format(title=html.escape(title), width=width, height=height), encoding="utf-8")
     manifest.setdefault("screens", []).append(
         {"file": target.name, "title": title, "group": group, "size": [width, height], "about": about, "blocks": []}
     )
-    (folder / MANIFEST).write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+    (folder / MANIFEST).write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return target
