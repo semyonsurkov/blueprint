@@ -9,6 +9,9 @@ MANIFEST = "screens.json"
 STYLES = "wire.css"
 SCRIPT = "wire.js"
 BOARD = "index.html"
+FEEDBACK = "FEEDBACK.md"
+FEEDBACK_ITEM = re.compile(r"^- \[( |x)\] \d+\. `[^`]+` — .+$")
+FEEDBACK_SCREEN = re.compile(r"^## (\S+\.html)")
 SCREEN_NAME = re.compile(r"^[A-Z][A-Za-z0-9]*$")
 SIZE_PROPERTIES = {
     "width", "height", "min-width", "min-height", "max-width", "max-height",
@@ -131,6 +134,21 @@ def check(folder: Path) -> list[Problem]:
         parser = ScreenParser(classes, blocks)
         parser.feed(path.read_text())
         problems.extend(Problem(path.name, line, message) for line, message in parser.problems)
+    problems.extend(check_feedback(folder, listed))
+    return problems
+
+
+def check_feedback(folder: Path, listed: set[str]) -> list[Problem]:
+    path = folder / FEEDBACK
+    if not path.is_file():
+        return []
+    problems = []
+    for number, line in enumerate(path.read_text().splitlines(), start=1):
+        heading = FEEDBACK_SCREEN.match(line)
+        if heading and heading[1] not in listed:
+            problems.append(Problem(FEEDBACK, number, f"отзывы к экрану {heading[1]}, которого нет в {MANIFEST}"))
+        if line.startswith("- ") and not FEEDBACK_ITEM.match(line):
+            problems.append(Problem(FEEDBACK, number, "пункт отзыва должен быть вида «- [ ] N. `путь` — текст»"))
     return problems
 
 

@@ -10,25 +10,31 @@ html, body { margin: 0; background: #e6e6e6; font-family: system-ui; }
 .caption { position: absolute; top: -28px; font-size: 14px; color: #444; white-space: nowrap; text-decoration: none; }
 .caption:hover { color: #000; text-decoration: underline; }
 .group { position: absolute; font-size: 64px; font-weight: 700; color: #222; white-space: nowrap; }
+.panning, .panning * { cursor: grab !important; user-select: none; }
+.dragging, .dragging * { cursor: grabbing !important; }
+.zoom { position: fixed; left: 16px; bottom: 16px; z-index: 1000; display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid #c9c9c9; border-radius: 10px; background: #fff; font: 13px system-ui; }
+.zoom button { min-width: 30px; height: 28px; border: 0; border-radius: 6px; background: none; color: #1a1a1a; font: inherit; cursor: pointer; }
+.zoom button:hover { background: #f1f3f5; }
+.zoom output { min-width: 44px; text-align: center; color: #5c5c5c; }
 </style>
 <div id="space"><div id="board"></div></div>
 <script type="module">
-const WIDE_COLUMNS = 3;
+const WIDE_COLUMNS = 2;
 const NARROW_COLUMNS = 7;
 const WIDE_FROM = 1000;
 const GAP = 80;
-const GROUP_TITLE_H = 200;
+const GROUP_TITLE_H = 120;
 const PAD_X = 40;
-const PAD_Y = 140;
+const PAD_Y = 40;
 const MIN_SCALE = 0.08;
 const MAX_SCALE = 2;
-const DEFAULT_SCALE = 0.28;
-const VIEW_KEY = "mockups_view";
+const FIT_MAX_SCALE = 0.6;
+const VIEW_KEY = "mockups_view_v2";
 const space = document.getElementById("space");
 const board = document.getElementById("board");
 const pending = [];
 const saved = JSON.parse(sessionStorage.getItem(VIEW_KEY) ?? "null");
-let scale = saved?.scale ?? DEFAULT_SCALE;
+let scale = saved?.scale ?? MIN_SCALE;
 const content = { width: 0, height: 0 };
 
 const apply = () => {
@@ -70,21 +76,76 @@ for (const [name, list] of groups) {
   top += rowHeight + GAP * 2;
 }
 content.height = top;
+if (!saved) scale = Math.min(FIT_MAX_SCALE, Math.max(MIN_SCALE, (innerWidth - PAD_X * 2) / content.width));
 apply();
 if (saved) scrollTo(saved.scrollX, saved.scrollY);
 await Promise.all(pending);
 window.WIRE_ANNOTATE = true;
 await import("./wire.js");
 
+const zoomTo = (next, clientX = innerWidth / 2, clientY = innerHeight / 2) => {
+  const anchorX = (scrollX + clientX - PAD_X) / scale;
+  const anchorY = (scrollY + clientY - PAD_Y) / scale;
+  scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
+  apply();
+  scrollTo(PAD_X + anchorX * scale - clientX, PAD_Y + anchorY * scale - clientY);
+  zoomLabel.value = `${Math.round(scale * 100)}%`;
+  remember();
+};
+
+const zoom = document.createElement("div");
+zoom.className = "zoom";
+zoom.innerHTML = '<button type="button" data-step="0.8" aria-label="Уменьшить">−</button><output></output><button type="button" data-step="1.25" aria-label="Увеличить">+</button><button type="button" data-fit>По ширине</button>';
+const zoomLabel = zoom.querySelector("output");
+zoomLabel.value = `${Math.round(scale * 100)}%`;
+zoom.addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (!button) return;
+  if (button.dataset.fit !== undefined) {
+    zoomTo(Math.min(FIT_MAX_SCALE, Math.max(MIN_SCALE, (innerWidth - PAD_X * 2) / content.width)), 0, 0);
+    scrollTo(0, 0);
+  } else zoomTo(scale * Number(button.dataset.step));
+});
+document.body.append(zoom);
+
+let spaceHeld = false;
+let drag = null;
+const typing = (element) => element.closest("input, textarea, [contenteditable]");
+addEventListener("keydown", (event) => {
+  if (event.code !== "Space" || typing(event.target)) return;
+  event.preventDefault();
+  spaceHeld = true;
+  document.documentElement.classList.add("panning");
+});
+addEventListener("keyup", (event) => {
+  if (event.code !== "Space") return;
+  spaceHeld = false;
+  document.documentElement.classList.remove("panning");
+});
+addEventListener("mousedown", (event) => {
+  if (!(spaceHeld && event.button === 0) && event.button !== 1) return;
+  event.preventDefault();
+  event.stopPropagation();
+  drag = { x: event.clientX, y: event.clientY };
+  document.documentElement.classList.add("dragging");
+}, true);
+addEventListener("mousemove", (event) => {
+  if (!drag) return;
+  scrollBy(drag.x - event.clientX, drag.y - event.clientY);
+  drag = { x: event.clientX, y: event.clientY };
+});
+addEventListener("mouseup", () => {
+  drag = null;
+  document.documentElement.classList.remove("dragging");
+});
+addEventListener("click", (event) => {
+  if (spaceHeld) { event.preventDefault(); event.stopPropagation(); }
+}, true);
+
 addEventListener("scroll", remember);
 addEventListener("wheel", (event) => {
   if (!(event.ctrlKey || event.metaKey)) return;
   event.preventDefault();
-  const anchorX = (scrollX + event.clientX - PAD_X) / scale;
-  const anchorY = (scrollY + event.clientY - PAD_Y) / scale;
-  scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * Math.exp(-event.deltaY * 0.01)));
-  apply();
-  scrollTo(PAD_X + anchorX * scale - event.clientX, PAD_Y + anchorY * scale - event.clientY);
-  remember();
+  zoomTo(scale * Math.exp(-event.deltaY * 0.01), event.clientX, event.clientY);
 }, { passive: false });
 </script>

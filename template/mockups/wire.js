@@ -38,25 +38,9 @@ for (let node; (node = document.querySelector("[data-repeat]"));) {
   [node, ...copies].forEach((item, index) => { item.dataset.copy = `${index + 1}/${count}`; });
 }
 
-const REACT_VERSION = "19.3.0";
-const AGENTATION_VERSION = "3.1.2";
-const ESM = "https://esm.sh";
-
-const mountNotes = async () => {
-  const deps = `deps=react@${REACT_VERSION},react-dom@${REACT_VERSION}`;
-  const [react, dom, { Agentation }] = await Promise.all([
-    import(`${ESM}/react@${REACT_VERSION}`),
-    import(`${ESM}/react-dom@${REACT_VERSION}/client`),
-    import(`${ESM}/agentation@${AGENTATION_VERSION}?${deps}`),
-  ]);
-  const host = document.createElement("div");
-  document.body.append(host);
-  dom.createRoot(host).render((react.default ?? react).createElement(Agentation));
-};
-
 const annotate = new URLSearchParams(location.search).has("annotate");
 if (window.WIRE_ANNOTATE || annotate || window.top === window) {
-  mountNotes();
+  import("./feedback.js");
   if (annotate) {
     const back = document.createElement("a");
     back.className = "back_chip";

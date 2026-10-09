@@ -11,6 +11,7 @@ HOST = "127.0.0.1"
 DEFAULT_PORT = 5190
 PAGE_URL = "/blueprint/"
 HIDDEN_PREFIXES = (".git", ".env")
+FEEDBACK_NAME = "FEEDBACK.md"
 
 
 def read_config() -> dict:
@@ -18,7 +19,13 @@ def read_config() -> dict:
 
 
 def writable_files(config: dict) -> set[str]:
-    return {tab["file"] for tab in config["tabs"] if tab["type"] == "excalidraw"}
+    schemes = {tab["file"] for tab in config["tabs"] if tab["type"] == "excalidraw"}
+    feedback = {
+        (Path(tab["src"]).parent / FEEDBACK_NAME).as_posix()
+        for tab in config["tabs"]
+        if tab["type"] == "frame" and "src" in tab
+    }
+    return schemes | feedback
 
 
 def listed_folders(config: dict) -> dict[str, set[str]]:
@@ -91,7 +98,8 @@ class Handler(SimpleHTTPRequestHandler):
         if PROJECT_ROOT not in target.parents:
             self._send_json(403, b'{"error":"path is outside the project"}')
             return
-        json.loads(body)
+        if target.suffix == ".excalidraw":
+            json.loads(body)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
         self._send_json(200, b'{"ok":true}')
