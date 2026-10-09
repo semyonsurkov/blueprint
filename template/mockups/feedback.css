@@ -29,6 +29,37 @@
   z-index: 1000;
 }
 
+.fb_bar .ui_button[aria-pressed="true"] {
+  border-color: var(--fb_mark);
+  background: var(--fb_mark);
+  color: var(--fb_mark_text);
+}
+
+.fb_bar .ui_button[aria-pressed="true"] .ui_kbd { border-color: currentColor; color: inherit; }
+
+.fb_mode_hint {
+  position: fixed;
+  right: var(--spacing_x2);
+  bottom: calc(var(--spacing_x2) + var(--control_height_sm) + var(--spacing_x2));
+  z-index: 1000;
+  padding: var(--spacing_x0_75) var(--spacing_x1_5);
+  border-radius: var(--radius_md);
+  background: var(--fb_mark);
+  color: var(--fb_mark_text);
+  box-shadow: var(--shadow_sm);
+}
+
+.fb_mode_hint[hidden] { display: none; }
+
+.fb_mode body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+  border: 3px solid var(--fb_mark);
+  pointer-events: none;
+}
+
 .fb_mode .screen *,
 .fb_mode .caption {
   cursor: crosshair !important;

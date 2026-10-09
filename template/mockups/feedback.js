@@ -231,8 +231,14 @@ const captionScreen = (element) => {
   return holder?.id?.startsWith("screen_") ? `${holder.id.slice(7)}.html` : null;
 };
 
+const modeHint = document.createElement("div");
+modeHint.className = "fb_mode_hint fb_ui";
+modeHint.hidden = true;
+modeHint.textContent = "Режим отзыва: щёлкните по элементу или названию экрана · Esc — выйти";
+
 const toggleMode = (button) => {
   mode = !mode;
+  modeHint.hidden = !mode;
   button.setAttribute("aria-pressed", String(mode));
   document.documentElement.classList.toggle("fb_mode", mode);
   hovered?.classList.remove("fb_hover");
@@ -288,7 +294,8 @@ counter.addEventListener("click", () => openPanel(panel.hidden));
 bar.append(modeButton, counter);
 themed(panel);
 themed(bar);
-document.body.append(panel, bar);
+themed(modeHint);
+document.body.append(panel, bar, modeHint);
 
 const [manifest, feedback] = await Promise.all([
   fetch("screens.json").then((response) => response.json()).catch(() => ({ screens: [] })),
