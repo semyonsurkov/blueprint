@@ -4,6 +4,8 @@ const ITEM = /^- \[( |x)\] (\d+)\. `([^`]+)` — (.*)$/;
 const SCREEN_HEADING = /^## (\S+\.html)/;
 
 
+let uiTheme = "light";
+const themed = (element) => { element.dataset.uiTheme = uiTheme; return element; };
 const notes = [];
 const titles = new Map();
 let mode = false;
@@ -90,6 +92,7 @@ const renderPins = () => {
       const whole = element === root;
       const pin = document.createElement("div");
       pin.className = "fb_pin";
+      themed(pin);
       pin.textContent = note.id;
       pin.title = note.text;
       if (note.done) pin.dataset.done = "";
@@ -106,7 +109,7 @@ const renderPins = () => {
 };
 
 const panel = document.createElement("aside");
-panel.className = "fb_panel side_panel";
+panel.className = "fb_panel ui_side_panel";
 panel.hidden = true;
 
 const renderPanel = () => {
@@ -115,7 +118,7 @@ const renderPanel = () => {
   heading.textContent = "Отзывы";
   panel.append(heading);
   if (!notes.length) {
-    panel.append(Object.assign(document.createElement("p"), { className: "hint_text", textContent: "Пока пусто. Нажмите C или «Оставить отзыв» и щёлкните по элементу экрана. Щелчок по названию экрана оставляет отзыв на весь экран." }));
+    panel.append(Object.assign(document.createElement("p"), { className: "ui_hint_text", textContent: "Пока пусто. Нажмите C или «Оставить отзыв» и щёлкните по элементу экрана. Щелчок по названию экрана оставляет отзыв на весь экран." }));
   }
   for (const screen of new Set(notes.map((note) => note.screen))) {
     panel.append(Object.assign(document.createElement("h3"), { textContent: titles.get(screen) ?? screen }));
@@ -123,13 +126,13 @@ const renderPanel = () => {
       const row = document.createElement("div");
       row.className = "fb_note";
       if (note.done) row.dataset.done = "";
-      row.innerHTML = `<span class="fb_num"></span><span class="fb_text"></span><input type="checkbox" aria-label="Выполнено"><button type="button" class="button" data-variant="quiet" aria-label="Удалить">✕</button>`;
+      row.innerHTML = `<span class="fb_num"></span><span class="fb_text"></span><input type="checkbox" aria-label="Выполнено"><button type="ui_button" class="ui_button" data-variant="quiet" aria-label="Удалить">✕</button>`;
       row.querySelector(".fb_num").textContent = note.id;
       row.querySelector(".fb_text").textContent = note.text;
       const done = row.querySelector("input");
       done.checked = note.done;
       done.addEventListener("click", (event) => { event.stopPropagation(); note.done = done.checked; save(); });
-      row.querySelector("button").addEventListener("click", (event) => {
+      row.querySelector("ui_button").addEventListener("click", (event) => {
         event.stopPropagation();
         notes.splice(notes.indexOf(note), 1);
         save();
@@ -149,7 +152,7 @@ const renderPanel = () => {
   }
 };
 
-const counter = document.createElement("button");
+const counter = document.createElement("ui_button");
 const render = () => {
   counter.textContent = `Отзывы (${notes.filter((note) => !note.done).length})`;
   renderPanel();
@@ -163,7 +166,8 @@ const openPanel = (open) => {
 
 const placePopup = (box, x, y) => {
   document.querySelector(".fb_pop")?.remove();
-  box.className = "fb_pop fb_ui popover";
+  box.className = "fb_pop fb_ui ui_popover";
+  themed(box);
   box.popover = "auto";
   box.style.setProperty("--popover_x", `${Math.max(8, Math.min(x, innerWidth - 336))}px`);
   box.style.setProperty("--popover_y", `${Math.max(8, Math.min(y, innerHeight - 260))}px`);
@@ -175,9 +179,9 @@ const placePopup = (box, x, y) => {
 const popup = (screen, selector, x, y) => {
   const box = document.createElement("form");
   const whole = selector === SCREEN;
-  box.innerHTML = `<div class="fb_pop_head"></div><textarea class="field" placeholder="Что хочется поменять?"></textarea><div class="mono hint_text"></div><div class="fb_actions"><button type="button" class="button" data-variant="ghost">Отмена</button><button type="submit" class="button" data-variant="primary">Сохранить</button></div>`;
+  box.innerHTML = `<div class="fb_pop_head"></div><textarea class="ui_field" placeholder="Что хочется поменять?"></textarea><div class="ui_mono ui_hint_text"></div><div class="fb_actions"><button type="ui_button" class="ui_button" data-variant="ghost">Отмена</button><button type="submit" class="ui_button" data-variant="primary">Сохранить</button></div>`;
   box.querySelector(".fb_pop_head").textContent = whole ? `Весь экран «${titles.get(screen) ?? screen}»` : (titles.get(screen) ?? screen);
-  box.querySelector(".mono").textContent = whole ? screen : `${screen} ${selector}`;
+  box.querySelector(".ui_mono").textContent = whole ? screen : `${screen} ${selector}`;
   box.querySelector("button[type=button]").addEventListener("click", () => box.hidePopover());
   box.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -193,11 +197,11 @@ const popup = (screen, selector, x, y) => {
 
 const showNote = (note, x, y) => {
   const box = document.createElement("form");
-  box.innerHTML = `<div class="fb_pop_head"><span class="fb_num"></span><span></span></div><textarea class="field"></textarea><div class="mono hint_text"></div><div class="fb_actions"><button type="button" class="button" data-variant="quiet" data-delete>Удалить</button><button type="button" class="button" data-done></button><button type="submit" class="button" data-variant="primary">Сохранить</button></div>`;
+  box.innerHTML = `<div class="fb_pop_head"><span class="fb_num"></span><span></span></div><textarea class="ui_field"></textarea><div class="ui_mono ui_hint_text"></div><div class="fb_actions"><button type="ui_button" class="ui_button" data-variant="quiet" data-delete>Удалить</button><button type="ui_button" class="ui_button" data-done></button><button type="submit" class="ui_button" data-variant="primary">Сохранить</button></div>`;
   box.querySelector(".fb_num").textContent = note.id;
   box.querySelector(".fb_pop_head span:last-child").textContent = titles.get(note.screen) ?? note.screen;
   box.querySelector("textarea").value = note.text;
-  box.querySelector(".mono").textContent = `${note.screen} ${note.selector}`;
+  box.querySelector(".ui_mono").textContent = `${note.screen} ${note.selector}`;
   const done = box.querySelector("[data-done]");
   done.textContent = note.done ? "Вернуть в работу" : "Выполнено";
   done.addEventListener("click", () => { note.done = !note.done; box.hidePopover(); save(); });
@@ -265,23 +269,25 @@ for (const href of ["/blueprint/ui.css", "feedback.css"]) {
   document.head.append(Object.assign(document.createElement("link"), { rel: "stylesheet", href }));
 }
 const bar = document.createElement("div");
-bar.className = "fb_bar fb_ui toolbar";
+bar.className = "fb_bar fb_ui ui_toolbar";
 panel.classList.add("fb_ui");
 try {
   if (window.parent !== window) {
     document.documentElement.dataset.framed = "";
-    document.documentElement.dataset.theme = window.parent.document.documentElement.dataset.theme ?? "light";
+    uiTheme = window.parent.document.documentElement.dataset.theme ?? "light";
   }
 } catch {}
-const modeButton = Object.assign(document.createElement("button"), { type: "button", className: "button", innerHTML: "Оставить отзыв<span class=\"kbd\">C</span>" });
+const modeButton = Object.assign(document.createElement("ui_button"), { type: "ui_button", className: "ui_button", innerHTML: "Оставить отзыв<span class=\"ui_kbd\">C</span>" });
 modeButton.dataset.variant = "ghost";
 modeButton.setAttribute("aria-pressed", "false");
 modeButton.addEventListener("click", () => toggleMode(modeButton));
-counter.type = "button";
-counter.className = "button";
+counter.type = "ui_button";
+counter.className = "ui_button";
 counter.dataset.variant = "ghost";
 counter.addEventListener("click", () => openPanel(panel.hidden));
 bar.append(modeButton, counter);
+themed(panel);
+themed(bar);
 document.body.append(panel, bar);
 
 const [manifest, feedback] = await Promise.all([

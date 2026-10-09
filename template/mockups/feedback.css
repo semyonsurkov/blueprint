@@ -5,8 +5,8 @@
   color: var(--text);
 }
 
-:root[data-theme="dark"][data-framed] .fb_ui,
-:root[data-theme="dark"][data-framed] .fb_pin {
+:root[data-framed] .fb_ui[data-ui-theme="dark"],
+:root[data-framed] .fb_pin[data-ui-theme="dark"] {
   filter: invert(1) hue-rotate(180deg);
 }
 

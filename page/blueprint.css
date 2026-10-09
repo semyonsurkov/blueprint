@@ -5,7 +5,7 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text);
   font: var(--font_size_text)/var(--line_height_text) var(--font_sans);
 }
@@ -49,7 +49,7 @@ html, body {
   bottom: 0;
   width: min(760px, 92%);
   overflow: auto;
-  background: var(--bg);
+  background: var(--surface);
   border-left: var(--border);
   box-shadow: var(--shadow_sm);
   z-index: 10;
@@ -113,7 +113,7 @@ details.doc[open] > summary.source { margin-bottom: var(--spacing_x2); }
   position: absolute;
   inset: 0;
   z-index: 20;
-  background: var(--bg);
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   gap: var(--spacing_x2);
@@ -166,7 +166,7 @@ details.doc[open] > summary.source { margin-bottom: var(--spacing_x2); }
 }
 
 .tree a:hover, .tree summary:hover { background: var(--border_color); }
-.tree a[aria-current="page"] { background: var(--bg); font-weight: 600; }
+.tree a[aria-current="page"] { background: var(--surface); font-weight: 600; }
 
 .adr_title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .adr_status { flex: none; color: var(--text_secondary); font-size: var(--font_size_small); }
