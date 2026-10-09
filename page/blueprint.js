@@ -1,6 +1,3 @@
-import React from "react";
-import { createRoot } from "react-dom/client";
-import { Excalidraw, convertToExcalidrawElements, serializeAsJSON } from "@excalidraw/excalidraw";
 import { marked } from "marked";
 import { gfmHeadingId } from "marked-gfm-heading-id";
 import DOMPurify from "dompurify";
@@ -279,27 +276,21 @@ const renderAdrTab = renderLibrary(async (tab, files) => {
   return { node: adrNodes(entries), fallback: decisions[0] };
 });
 
-const seedScene = async (path) => {
-  const text = await fetchText(path);
-  const definition = text?.match(/```mermaid\n([\s\S]*?)```/)?.[1];
-  if (!definition) return null;
-  try {
-    const { parseMermaidToExcalidraw } = await import("@excalidraw/mermaid-to-excalidraw");
-    const { elements, files } = await parseMermaidToExcalidraw(definition);
-    return { elements: convertToExcalidrawElements(elements), files: files ?? {} };
-  } catch {
-    return null;
+const EXCALIDRAW_CSS = "https://esm.sh/@excalidraw/excalidraw@0.18.1/dist/prod/index.css";
+
+const loadExcalidraw = () => {
+  if (!document.querySelector(`link[href="${EXCALIDRAW_CSS}"]`)) {
+    document.head.insertAdjacentHTML("afterbegin", `<link rel="stylesheet" href="${EXCALIDRAW_CSS}">`);
   }
+  return Promise.all([import("react"), import("react-dom/client"), import("@excalidraw/excalidraw")]);
 };
 
 const loadScene = async (tab) => {
   const saved = await fetchText(tab.file);
-  if (saved) return { ...JSON.parse(saved), seeded: false };
-  const seeded = tab.seed ? await seedScene(tab.seed) : null;
-  return seeded ? { ...seeded, seeded: true } : { elements: [], seeded: false };
+  return saved ? JSON.parse(saved) : { elements: [] };
 };
 
-const save = async (tab, elements, appState, files) => {
+const save = async (serializeAsJSON, tab, elements, appState, files) => {
   const body = serializeAsJSON(elements, appState, files, "local");
   const response = await fetch(`/api/save?path=${encodeURIComponent(tab.file)}`, { method: "POST", body });
   status.textContent = response.ok ? `Сохранено в ${tab.file}` : "Не удалось сохранить";
@@ -330,26 +321,20 @@ const renderExcalidraw = async (tab, ready) => {
   canvas.className = "canvas";
   view.append(canvas);
   const toggle = tab.docs?.length ? docsButton(tab) : null;
-  const scene = await loadScene(tab);
-  if (scene.seeded) status.textContent = `Схема собрана из ${tab.seed}, после правки сохранится в ${tab.file}`;
+  const [[react, dom, { Excalidraw, serializeAsJSON }], scene] = await Promise.all([loadExcalidraw(), loadScene(tab)]);
+  const React = react.default ?? react;
   let timer;
   let lastSaved = JSON.stringify(scene.elements);
-  let pristine = scene.seeded;
   const onChange = (elements, appState, files) => {
     const snapshot = JSON.stringify(elements);
-    if (pristine) {
-      pristine = false;
-      lastSaved = snapshot;
-      return;
-    }
     if (snapshot === lastSaved) return;
     clearTimeout(timer);
     timer = setTimeout(() => {
       lastSaved = snapshot;
-      save(tab, elements, appState, files);
+      save(serializeAsJSON, tab, elements, appState, files);
     }, SAVE_DELAY_MS);
   };
-  const root = createRoot(canvas);
+  const root = dom.createRoot(canvas);
   root.render(React.createElement(Excalidraw, {
     initialData: { elements: scene.elements, files: scene.files, appState: { viewBackgroundColor: "#ffffff" }, scrollToContent: true },
     langCode: "ru-RU",
