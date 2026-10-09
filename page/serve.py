@@ -13,6 +13,7 @@ PAGE_URL = "/blueprint/"
 HIDDEN_PREFIXES = (".git", ".env")
 LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "[::1]")
 FEEDBACK_NAME = "FEEDBACK.md"
+MAX_BODY_BYTES = 20 * 1024 * 1024
 
 
 def read_config() -> dict:
@@ -38,7 +39,7 @@ def listed_folders(config: dict) -> dict[str, set[str]]:
 
 
 def hidden(name: str) -> bool:
-    return name.startswith(HIDDEN_PREFIXES)
+    return name.lower().startswith(HIDDEN_PREFIXES)
 
 
 def markdown_files(folder: str, exclude: set[str]) -> list[str]:
@@ -59,10 +60,29 @@ def own_hosts(port: int) -> set[str]:
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def _own_host(self) -> bool:
+        return self.headers.get("Host", "").lower() in own_hosts(self.server.server_port)
+
     def _from_this_server(self) -> bool:
-        hosts = own_hosts(self.server.server_port)
         origin = self.headers.get("Origin")
-        return self.headers.get("Host") in hosts and (origin is None or urlparse(origin).netloc in hosts)
+        return self._own_host() and (origin is None or urlparse(origin).netloc.lower() in own_hosts(self.server.server_port))
+
+    def _readable(self, path: str) -> bool:
+        if not self._own_host():
+            self.send_error(403)
+            return False
+        if any(hidden(part) for part in path.split("/")):
+            self.send_error(404)
+            return False
+        return True
+
+    def list_directory(self, path):
+        self.send_error(404)
+        return None
+
+    def do_HEAD(self):
+        if self._readable(unquote(urlparse(self.path).path)):
+            super().do_HEAD()
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
@@ -70,16 +90,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = unquote(urlparse(self.path).path)
-        if self.headers.get("Host") not in own_hosts(self.server.server_port):
-            self.send_error(403)
+        if not self._readable(path):
             return
         if path == "/":
             self.send_response(302)
             self.send_header("Location", PAGE_URL)
             self.end_headers()
-            return
-        if any(part.startswith(HIDDEN_PREFIXES) for part in path.split("/")):
-            self.send_error(404)
             return
         if path == "/api/tree":
             self._send_tree(parse_qs(urlparse(self.path).query).get("dir", [""])[0])
@@ -96,13 +112,17 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         url = urlparse(self.path)
-        body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         if url.path != "/api/save":
             self.send_error(404)
             return
         if not self._from_this_server():
             self._send_json(403, b'{"error":"foreign origin"}')
             return
+        length = self.headers.get("Content-Length", "")
+        if not length.isdigit() or int(length) > MAX_BODY_BYTES:
+            self._send_json(413, b'{"error":"body is too large or has no length"}')
+            return
+        body = self.rfile.read(int(length))
         relative = parse_qs(url.query).get("path", [""])[0]
         if relative not in writable_files(read_config()):
             self._send_json(403, b'{"error":"path is not writable"}')
