@@ -310,7 +310,7 @@ def serve(args: argparse.Namespace) -> int:
         "npx", "--yes", LIVE_RELOAD, "start",
         "--proxy", f"http://127.0.0.1:{port}", "--port", str(port + 1), "--listen", "127.0.0.1",
         "--files", *watched_paths(config), "--ignore", *LIVE_IGNORE,
-        "--no-open", "--no-notify", "--no-ui", "--no-ghost-mode",
+        "--no-open", "--no-notify", "--no-ui", "--no-ghost-mode", "--no-inject-changes",
     ]
     print(f"blueprint: живое обновление на http://localhost:{port + 1}", flush=True)
     try:
