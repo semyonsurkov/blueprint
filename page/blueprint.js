@@ -131,10 +131,12 @@ const renderMarkdownTab = async (tab, ready) => {
 };
 
 const renderSchemaTab = async (...args) => (await import("./schema.js")).renderSchema(...args);
+const renderStorybookTab = async (...args) => (await import("./storybook.js")).renderStorybook(...args);
 
 const renderers = {
   excalidraw: renderSchemaTab,
   frame: renderFrame,
+  storybook: renderStorybookTab,
   markdown: renderMarkdownTab,
   docs: renderDocsTab,
   adr: renderAdrTab,
@@ -244,5 +246,9 @@ themeToggle.addEventListener("click", () => {
   const next = theme() === "dark" ? "light" : "dark";
   document.documentElement.dataset.theme = next;
   try { localStorage.setItem(THEME_KEY, next); } catch {}
-  if (config) open(parseHash().id, parseHash().path);
+  if (config) {
+    const { id, path } = parseHash();
+    const tab = config.tabs.find((item) => item.id === id) ?? config.tabs[0];
+    if (tab.type !== "storybook") open(id, path);
+  }
 });

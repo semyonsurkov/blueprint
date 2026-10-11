@@ -27,6 +27,7 @@ class Layout:
     architecture_exists: bool = False
     overview: list[str] = field(default_factory=list)
     mockups: str | None = None
+    storybook: str | None = None
     roadmap: str | None = None
     ideas: str | None = None
     adr: str | None = None
@@ -140,6 +141,8 @@ def from_config(found: Layout, previous: dict) -> Layout:
         found.adr = tabs["adr"].get("dir", found.adr)
     if "mockups" in tabs:
         found.mockups = str(Path(tabs["mockups"].get("src", "")).parent.as_posix()) or found.mockups
+    if "components" in tabs and tabs["components"].get("type") == "storybook":
+        found.storybook = tabs["components"].get("src")
     if "mvp" in tabs:
         documents = [item if isinstance(item, str) else item["path"] for item in tabs["mvp"].get("docs", [])]
         found.roadmap = documents[0] if documents else None

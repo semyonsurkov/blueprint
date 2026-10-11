@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import layout as detection  # noqa: E402
@@ -26,6 +27,7 @@ SERVER_NAME = "serve.py"
 NONE = "нет"
 YES_ANSWERS = ("д", "да", "y", "yes")
 GENERATED_TABS = {"architecture", "docs", "adr", "mockups", "mvp"}
+DEFAULT_STORYBOOK = "http://localhost:6006/"
 LEGACY_MOCKUP_FILES = ("feedback.js", "feedback.css")
 
 
@@ -105,6 +107,21 @@ def from_flag(value: str) -> str | None:
     return None if value == NONE else normalize(value)
 
 
+def storybook_source(value: str) -> str | None:
+    value = value.strip()
+    if value == NONE:
+        return None
+    try:
+        url = urlsplit(value)
+        valid = (url.scheme in ("http", "https") and url.hostname and url.username is None and url.password is None
+                 and url.port != 0 and "\\" not in value and not any(char.isspace() for char in value))
+    except ValueError:
+        valid = False
+    if not valid:
+        raise CliError(f"адрес Storybook должен быть http:// или https://, например {DEFAULT_STORYBOOK}; убрать вкладку: --storybook {NONE}")
+    return value
+
+
 def configure(root: Path, args: argparse.Namespace, interactive: bool, previous: dict | None) -> detection.Layout:
     found = detection.detect(root)
     if previous:
@@ -119,6 +136,8 @@ def configure(root: Path, args: argparse.Namespace, interactive: bool, previous:
         found.title = args.title
     if args.exclude is not None:
         found.exclude = [] if args.exclude == NONE else [item.strip() for item in args.exclude.split(",") if item.strip()]
+    if args.storybook is not None:
+        found.storybook = storybook_source(args.storybook)
     if found.architecture is None and args.architecture is None and not (previous and "architecture" not in {tab.get("id") for tab in previous.get("tabs", [])}):
         found.architecture = detection.default_scheme(found)
     found.architecture_exists = bool(found.architecture) and (root / found.architecture).is_file()
@@ -139,6 +158,11 @@ def configure(root: Path, args: argparse.Namespace, interactive: bool, previous:
             found.mockups = detection.MOCKUPS_DEFAULT
     else:
         found.mockups = ask("Макеты экранов (папка)", found.mockups)
+    if found.storybook is None and args.storybook is None:
+        if input(f"Подключить Storybook проекта во вкладке Компоненты? [{NONE}/да]: ").strip().lower() in YES_ANSWERS:
+            found.storybook = storybook_source(ask_text("Адрес Storybook", DEFAULT_STORYBOOK))
+    else:
+        found.storybook = storybook_source(ask_text(f"Адрес Storybook (или «{NONE}»)", found.storybook or NONE))
     return found
 
 
@@ -159,6 +183,8 @@ def build_config(found: detection.Layout, port: int) -> dict:
         tabs.append({"id": "adr", "title": "ADR", "type": "adr", "dir": found.adr})
     if found.mockups:
         tabs.append({"id": "mockups", "title": "Макеты", "type": "frame", "src": f"{found.mockups}/index.html"})
+    if found.storybook:
+        tabs.append({"id": "components", "title": "Компоненты", "type": "storybook", "src": found.storybook})
     plan = [{"path": found.roadmap, "collapsed": False}] if found.roadmap else []
     plan += [{"path": found.ideas, "collapsed": True}] if found.ideas else []
     if plan:
@@ -168,7 +194,10 @@ def build_config(found: detection.Layout, port: int) -> dict:
 
 def merge_previous(config: dict, previous: dict) -> dict:
     config["port"] = previous.get("port", config["port"])
-    custom = [tab for tab in previous.get("tabs", []) if tab.get("id") not in GENERATED_TABS]
+    custom = [tab for tab in previous.get("tabs", []) if tab.get("id") not in GENERATED_TABS
+              and not (tab.get("id") == "components" and tab.get("type") == "storybook")]
+    if any(tab.get("id") == "components" for tab in custom) and any(tab["id"] == "components" for tab in config["tabs"]):
+        raise CliError("id components уже занят своей вкладкой; измени её id в blueprint.json перед подключением Storybook")
     config["tabs"] += custom
     return config
 
@@ -182,6 +211,8 @@ def report(root: Path, found: detection.Layout, config: dict) -> list[dict]:
             note = "есть" if found.architecture_exists else "файла нет, создастся при первом сохранении схемы"
         elif tab["type"] in ("docs", "adr"):
             note = f"{detection.markdown_count(root / tab['dir'])} .md"
+        elif tab["type"] == "storybook":
+            note = "подключён по адресу, запускается отдельно командой проекта"
         elif tab["type"] == "frame":
             note = "есть" if (root / tab["src"]).is_file() else "файла нет: укажи папку с заготовкой или убери вкладку"
         else:
@@ -231,8 +262,8 @@ def init(args: argparse.Namespace) -> int:
     found = configure(root, args, interactive, previous)
     config = build_config(found, detection.project_port(root))
     if previous is not None:
-        shutil.copy2(config_file, target / BACKUP_NAME)
         config = merge_previous(config, previous)
+        shutil.copy2(config_file, target / BACKUP_NAME)
     copy_page(target)
     write_config(root, config)
     messages = [install_mockups(root, found.mockups)] if found.mockups else []
@@ -362,6 +393,7 @@ def parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--exclude", help="подпапки документации через запятую, которые не показывать")
     init_parser.add_argument("--architecture", help=f"файл схемы .excalidraw или «{NONE}»")
     init_parser.add_argument("--mockups", help=f"папка макетов экранов, например {detection.MOCKUPS_DEFAULT}, или «{NONE}»")
+    init_parser.add_argument("--storybook", metavar="URL", help=f"http(s) адрес Storybook для вкладки Компоненты или «{NONE}»; по умолчанию выключен")
     init_parser.add_argument("--roadmap", help=f"файл roadmap или «{NONE}»")
     init_parser.add_argument("--ideas", help=f"файл идей или «{NONE}»")
     init_parser.add_argument("--adr", help=f"папка ADR или «{NONE}»")
