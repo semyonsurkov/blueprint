@@ -90,12 +90,15 @@ def watched_files() -> list[Path]:
         config = read_config()
     except (OSError, ValueError):
         return files
+    frame_folders = set()
     for tab in config.get("tabs", []):
         files += [PROJECT_ROOT / path for path in tab_paths(tab)]
         if tab.get("type") == "frame" and "src" in tab:
             folder = (PROJECT_ROOT / tab["src"]).parent.resolve()
             if PROJECT_ROOT in folder.parents:
-                files += folder_files(folder)
+                frame_folders.add(folder)
+    for folder in frame_folders:
+        files += folder_files(folder)
     for folder, exclude in listed_folders(config).items():
         files += [PROJECT_ROOT / path for path in markdown_files(folder, exclude)]
     return files
@@ -103,11 +106,12 @@ def watched_files() -> list[Path]:
 
 def snapshot() -> dict[str, tuple[int, int]]:
     state = {}
-    for path in watched_files():
+    for path in set(watched_files()):
         try:
+            path = path.resolve()
+            relative = path.relative_to(PROJECT_ROOT).as_posix()
             info = path.stat()
-            relative = path.resolve().relative_to(PROJECT_ROOT).as_posix()
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             continue
         state[relative] = (info.st_mtime_ns, info.st_size)
     return state
