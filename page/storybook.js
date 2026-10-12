@@ -42,12 +42,9 @@ export const renderStorybook = (tab, ready, { view }) => {
   external.rel = "noopener noreferrer";
   external.textContent = "Открыть отдельно";
   toolbar.append(address, retry, external);
-  const hint = document.createElement("p");
-  hint.className = "storybook_hint";
-  hint.textContent = "Если каталог не открылся, запусти Storybook командой проекта и нажми Перезагрузить. Тема компонентов выбирается внутри Storybook.";
   const stage = document.createElement("div");
   stage.className = "storybook_stage";
-  root.append(toolbar, hint, stage);
+  root.append(toolbar, stage);
   let frame;
   let timer;
   let loading;

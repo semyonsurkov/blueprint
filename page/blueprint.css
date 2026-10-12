@@ -78,14 +78,6 @@ html, body {
 
 .storybook_address { flex: 1 1 200px; min-width: 0; color: var(--text_secondary); }
 .storybook_toolbar a { text-decoration: none; }
-.storybook_hint {
-  margin: 0;
-  padding: 0 var(--spacing_x2) var(--spacing_x1);
-  border-bottom: var(--border);
-  color: var(--text_secondary);
-  font-size: var(--font_size_caption);
-}
-
 .storybook_stage { position: relative; flex: 1; min-height: 0; }
 .storybook_pending {
   position: absolute;
