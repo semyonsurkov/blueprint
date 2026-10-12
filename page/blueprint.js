@@ -1,3 +1,4 @@
+import { THEME_EVENT } from "./storybook-theme.js";
 import { coversPath, normalizeDir, renderAdrTab, renderDocsTab } from "./docs.js";
 import { watch } from "./live.js";
 import { decodeHref, fetchText, fileUrl, renderDocs } from "./markdown.js";
@@ -245,6 +246,7 @@ if (config) {
 themeToggle.addEventListener("click", () => {
   const next = theme() === "dark" ? "light" : "dark";
   document.documentElement.dataset.theme = next;
+  window.dispatchEvent(new CustomEvent(THEME_EVENT));
   try { localStorage.setItem(THEME_KEY, next); } catch {}
   if (config) {
     const { id, path } = parseHash();
