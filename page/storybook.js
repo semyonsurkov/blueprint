@@ -1,3 +1,5 @@
+import { connectStorybookFrame, storybookUrl } from "./storybook-theme.js";
+
 const LOAD_TIMEOUT_MS = 10000;
 
 const sourceUrl = (source) => {
@@ -19,7 +21,7 @@ const loadingPlaceholder = () => {
   return node;
 };
 
-export const renderStorybook = (tab, ready, { view }) => {
+export const renderStorybook = (tab, ready, { view, theme }) => {
   if (!ready.alive()) return () => {};
   const source = sourceUrl(tab.src);
   const root = document.createElement("section");
@@ -48,9 +50,11 @@ export const renderStorybook = (tab, ready, { view }) => {
   let frame;
   let timer;
   let loading;
+  let disconnectTheme = () => {};
 
   const load = () => {
     clearTimeout(timer);
+    disconnectTheme();
     frame?.remove();
     frame = document.createElement("iframe");
     frame.className = "frame";
@@ -66,7 +70,8 @@ export const renderStorybook = (tab, ready, { view }) => {
       loading.remove();
       stage.setAttribute("aria-busy", "false");
     });
-    frame.src = source;
+    disconnectTheme = connectStorybookFrame(frame, new URL(source).origin, theme);
+    frame.src = storybookUrl(source, theme());
     stage.replaceChildren(frame, loading);
     timer = setTimeout(() => {
       if (!ready.alive()) return;
@@ -84,6 +89,7 @@ export const renderStorybook = (tab, ready, { view }) => {
   load();
   return () => {
     clearTimeout(timer);
+    disconnectTheme();
     frame?.remove();
     root.remove();
   };
